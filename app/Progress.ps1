@@ -1188,7 +1188,7 @@ function Set-PhaseDone($ev) {
         $notice += $script:S.Failures[0].Message
         if ($script:S.Failures.Count -gt 1) { $notice += "(+$($script:S.Failures.Count - 1) more)" }
     }
-    # Attribution warnings are deliberately never surfaced in this window (user decision 2026-08-27: internal tool) - they stay in the PDF/JSON and the UI log.
+    # Attribution warnings are deliberately never surfaced in this window (user decision 2026-08-27) - they stay in the PDF/JSON and the UI log.
     if ($notice.Count -gt 0) { Set-Notice ($notice -join ' ') 'Warn' }
 
     # Taskbar: clear the progress bar, badge the icon, tell the tooltip.

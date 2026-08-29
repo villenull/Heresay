@@ -54,7 +54,7 @@
 param(
     [string] $OutputDir = (Join-Path $PSScriptRoot 'dist'),
     [switch] $IncludeDownloadCache,
-    [string] $DownloadCacheSource = (Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads'),
+    [string] $DownloadCacheSource = $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads' } else { '' }),
     [string] $ZipName,
     [switch] $NoZip
 )
@@ -106,14 +106,14 @@ $required = @(
     # folder of scripts a non-technical person cannot run, so their absence is fatal.
     'Install Heresay.vbs'
     'Install Heresay.cmd'
-    'installer\Install-Gui.ps1'
-    'installer\Bootstrap-Pwsh.ps1'
-    'installer\Install-TranscribeIt.ps1'
-    'installer\Install-Common.ps1'
-    'installer\Uninstall-TranscribeIt.ps1'
-    'installer\assets'
-    'contracts\download-manifest.json'
-) + @($requiredAppFiles | ForEach-Object { "app\$_" })
+    'installer/Install-Gui.ps1'
+    'installer/Bootstrap-Pwsh.ps1'
+    'installer/Install-TranscribeIt.ps1'
+    'installer/Install-Common.ps1'
+    'installer/Uninstall-TranscribeIt.ps1'
+    'installer/assets'
+    'contracts/download-manifest.json'
+) + @($requiredAppFiles | ForEach-Object { "app/$_" })
 
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_)) })
 if ($missing.Count) {
@@ -123,7 +123,7 @@ if ($missing.Count) {
 
 # The manifest gates the cache stage here and every download at install time, so it has
 # to parse before anything is copied.
-$manifestPath = Join-Path $repoRoot 'contracts\download-manifest.json'
+$manifestPath = Join-Path $repoRoot 'contracts/download-manifest.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 Write-Ok "$($required.Count) required item(s) present; download manifest parses"
 
@@ -151,9 +151,9 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'contracts') -Destination (Join-Path
 # ship, and a copy-then-delete would still ship it if the delete broke.
 $stageInstaller = (New-Item -ItemType Directory -Path (Join-Path $stageRoot 'installer') -Force).FullName
 foreach ($f in @('Install-Gui.ps1', 'Install-TranscribeIt.ps1', 'Install-Common.ps1', 'Uninstall-TranscribeIt.ps1', 'Bootstrap-Pwsh.ps1')) {
-    Copy-Item -LiteralPath (Join-Path $repoRoot "installer\$f") -Destination $stageInstaller
+    Copy-Item -LiteralPath (Join-Path $repoRoot "installer/$f") -Destination $stageInstaller
 }
-Copy-Item -LiteralPath (Join-Path $repoRoot 'installer\assets') -Destination (Join-Path $stageInstaller 'assets') -Recurse
+Copy-Item -LiteralPath (Join-Path $repoRoot 'installer/assets') -Destination (Join-Path $stageInstaller 'assets') -Recurse
 
 # vendor\, test\, docs\, .git and installer\tests were never copied in the first place.
 $pruned = 0
@@ -226,9 +226,9 @@ $readmeLines = @(
     ''
     'WHAT THIS IS'
     ''
-    '  Heresay is an internal tool that turns an audio or video recording into'
-    '  a timestamped transcript PDF, fast. Everything runs on your own'
-    '  computer: recordings are never uploaded anywhere.'
+    '  Heresay turns an audio or video recording into a timestamped'
+    '  transcript PDF, fast. Everything runs on your own computer:'
+    '  recordings are never uploaded anywhere.'
     ''
     'HOW TO INSTALL'
     ''
@@ -306,7 +306,7 @@ $distManifest = [ordered]@{
     downloadCacheBundled  = $cacheBundled
 }
 [System.IO.File]::WriteAllText((Join-Path $stageRoot 'dist-manifest.json'),
-    (($distManifest | ConvertTo-Json) + "`r`n"),
+    ((($distManifest | ConvertTo-Json) -replace "`r?`n", "`r`n") + "`r`n"),
     [System.Text.UTF8Encoding]::new($false))
 Write-Ok "commit $commit, $fileCount file(s), cache bundled: $cacheBundled"
 
