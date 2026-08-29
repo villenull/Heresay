@@ -1,0 +1,447 @@
+{
+  "manifestVersion": 1,
+  "generatedUtc": "2026-08-26T20:32:21Z",
+  "producedBy": "Track A (engine)",
+  "consumedBy": "Track C (installer)",
+  "targetPlatform": "windows-x64",
+  "notes": [
+    "Every sizeBytes and sha256 was computed from the artifact actually downloaded and used to run the measured benchmark. Verify the hash after download and refuse to install on mismatch.",
+    "All URLs resolve through Zscaler TLS inspection using the Windows certificate store. curl.exe and Invoke-WebRequest both work; pip/certifi-based tooling does not, which is why there is no Python anywhere in this stack.",
+    "Everything is user-scope. No component requires admin rights, registry writes, or a Visual C++ redistributable.",
+    "components[].required = false are optional alternates. A minimal working install needs only the required ones.",
+    "Extraction paths in extract[].to are relative to the install root and use forward slashes. They target the INSTALLED layout: bin/{whisper,sherpa,ffmpeg}/ for executables and models/ for weights.",
+    "Track A's development tree uses vendor/{whisper,sherpa,ffmpeg}/ and vendor/models/ instead. Transcribe.ps1 resolves either layout at runtime relative to its own location, so the installer does not need to rewrite app/config.default.json.",
+    "NOT EVERY COMPONENT IS DOWNLOADED. The DEFAULT speech model is DERIVED at install time - see derivedComponents[] - because it is not published anywhere. Everything the installer puts on disk is still covered by a pinned SHA-256: downloaded components by their own hash, the derived one by the hashes of the two verified inputs it is produced from plus its own pinned output hash.",
+    "DO NOT take a HuggingFace ETag as the content SHA-256. MEASURED 2026-08-27: a HEAD on huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin returns ETag 5a4b65b0...42ad, while the file's actual SHA-256 is 1fc70f77...bc69. The ETag is the CDN's entity tag on that pop, not the LFS oid, and there is no X-Linked-Etag on the response to fall back to. The authoritative value is lfs.oid from https://huggingface.co/api/models/<repo>/tree/main?recursive=true, which was cross-checked here against three files whose hashes came from real downloads (large-v3-turbo-q5_0, small-q5_1, small.en-q8_0) and agreed with all three.",
+    "components[].installTimeOnly = true means the component is an install-time INPUT, not a shipped artefact: it is downloaded, verified, consumed, and then deleted from the install tree. It is deliberately NOT recorded in install-manifest.json files[], because it is not there when the install finishes."
+  ],
+  "installLayout": {
+    "bin/whisper": "whisper-cli.exe, whisper-quantize.exe, plus whisper/ggml DLLs (all ggml-cpu-* variants). whisper-quantize.exe has to live in THIS directory, beside those DLLs: MEASURED, with them absent it exits 53 having printed nothing at all, which is indistinguishable from success if you only check for output.",
+    "bin/sherpa": "sherpa-onnx-offline-speaker-diarization.exe plus onnxruntime DLLs.",
+    "bin/ffmpeg": "ffmpeg.exe, ffprobe.exe, LICENSE.txt.",
+    "models": "ggml-*.bin speech models and ggml-silero-*.bin VAD model.",
+    "models/diarization": "Segmentation and speaker-embedding ONNX models."
+  },
+  "totalRequiredBytes": 2691685950,
+  "totalAllBytes": 2858803478,
+  "totalInstalledBytes": 1823300281,
+  "_sizeNote": "totalAllBytes is DOWNLOAD volume and is now much larger than totalInstalledBytes. That is new and it is the point: 1624555275 of the download is the f16 source for the derived default model, and it never survives the install. Net of it, downloads are 1234248203. totalInstalledBytes was MEASURED on a clean install into an empty root on 2026-08-27 - bin/ 308157289 + app/ 354237 + models/ 1514788755, i.e. including the derived q4_0 model and excluding the f16 - and does not count logs/ or the staged uninstaller. Peak transient disk during that install is about 5.9 GB: the download cache plus the install tree while the f16 is briefly present.",
+  "archiveTools": {
+    "zip": "Expand-Archive, or tar.exe -xf",
+    "tar.bz2": "tar.exe -xjf  (bsdtar ships with Windows 10/11, no extra tooling needed)",
+    "none": "Single file: copy to the extract target."
+  },
+  "components": [
+    {
+      "name": "whisper.cpp",
+      "version": "v1.9.2",
+      "purpose": "Speech recognition engine. OpenBLAS CPU build - no CUDA, no GPU required.",
+      "required": true,
+      "sourceRepo": "https://github.com/ggml-org/whisper.cpp",
+      "url": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.2/whisper-blas-bin-x64.zip",
+      "filename": "whisper-blas-bin-x64.zip",
+      "sizeBytes": 20981386,
+      "sha256": "ffe5b47ca8e53a7677949f23a9c4641bbec4eee8a5714c3d14b67bb8d7b24a78",
+      "archiveType": "zip",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/ggml-org/whisper.cpp/blob/master/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/ggml-org/whisper.cpp -> license.spdx_id = MIT",
+      "extract": [
+        {
+          "from": "Release/whisper-cli.exe",
+          "to": "bin/whisper/whisper-cli.exe"
+        },
+        {
+          "from": "Release/whisper-quantize.exe",
+          "to": "bin/whisper/whisper-quantize.exe",
+          "note": "Derives the DEFAULT speech model at install time from the f16 weights - see derivedComponents[]. It comes out of THIS archive, the same already-SHA-256-verified zip as whisper-cli.exe, so vendoring it adds no new download, no new upstream, and no new provenance question. 111616 bytes. Usage: whisper-quantize.exe <model-f16.bin> <model-quant.bin> q4_0."
+        },
+        {
+          "from": "Release/whisper.dll",
+          "to": "bin/whisper/whisper.dll"
+        },
+        {
+          "from": "Release/ggml.dll",
+          "to": "bin/whisper/ggml.dll"
+        },
+        {
+          "from": "Release/ggml-base.dll",
+          "to": "bin/whisper/ggml-base.dll"
+        },
+        {
+          "from": "Release/ggml-blas.dll",
+          "to": "bin/whisper/ggml-blas.dll"
+        },
+        {
+          "from": "Release/libopenblas.dll",
+          "to": "bin/whisper/libopenblas.dll"
+        },
+        {
+          "fromGlob": "Release/ggml-cpu-*.dll",
+          "toDir": "bin/whisper/",
+          "note": "All CPU variants: the ggml loader picks the best match for the host CPU at runtime, so shipping only one would break other machines."
+        }
+      ]
+    },
+    {
+      "name": "ffmpeg",
+      "version": "n9.0.1-8-g16dfae5c88",
+      "purpose": "Probes media metadata (ffprobe) and decodes any container to 16 kHz mono PCM WAV (ffmpeg). Decode only - no encoders are used.",
+      "required": true,
+      "sourceRepo": "https://github.com/BtbN/FFmpeg-Builds",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-26-13-06/ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0.zip",
+      "filename": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0.zip",
+      "sizeBytes": 147007899,
+      "sha256": "f6bde4ee16e87a7aba228af9142645f429220f2d311128d7b827443ba21377c9",
+      "archiveType": "zip",
+      "license": "LGPL-3.0-or-later",
+      "licenseUrl": "https://www.ffmpeg.org/legal.html",
+      "licenseVerifiedFrom": "LICENSE.txt bundled in the archive is LGPL v3; ffmpeg -version shows no --enable-gpl and no --enable-nonfree, and --enable-version3 is present.",
+      "licenseNote": "LGPL variant chosen deliberately over the GPLv3 gyan.dev and BtbN GPL builds. TranscribeIt only decodes audio, so the GPL-only encoders (x264/x265) are not needed. Verified that aac, mp3, opus, flac, wmav2, alac and ac3 all decode, from mp4/m4a/mov/mkv/ogg/flac/asf/wav containers. BtbN build scripts are MIT; the ffmpeg binaries they produce are LGPLv3 here.",
+      "extract": [
+        {
+          "from": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0/bin/ffmpeg.exe",
+          "to": "bin/ffmpeg/ffmpeg.exe"
+        },
+        {
+          "from": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0/bin/ffprobe.exe",
+          "to": "bin/ffmpeg/ffprobe.exe"
+        },
+        {
+          "from": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0/LICENSE.txt",
+          "to": "bin/ffmpeg/LICENSE.txt",
+          "note": "LGPL requires the licence text to travel with the binaries."
+        }
+      ]
+    },
+    {
+      "name": "sherpa-onnx",
+      "version": "v1.13.6",
+      "purpose": "Speaker diarization (segmentation + embedding + clustering). Provides sherpa-onnx-offline-speaker-diarization.exe.",
+      "required": true,
+      "sourceRepo": "https://github.com/k2-fsa/sherpa-onnx",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.6/sherpa-onnx-v1.13.6-win-x64-shared-MT-Release.tar.bz2",
+      "filename": "sherpa-onnx-v1.13.6-win-x64-shared-MT-Release.tar.bz2",
+      "sizeBytes": 24497928,
+      "sha256": "4a296ee44c0997ab9fd4d30d7196446ab77e0ef34f0ce66b5e01b3339fce4613",
+      "archiveType": "tar.bz2",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/k2-fsa/sherpa-onnx -> license.spdx_id = Apache-2.0",
+      "licenseNote": "Apache-2.0 covers the sherpa-onnx CODE only. The models are licensed separately and are listed as their own components below. Bundled onnxruntime.dll is MIT (github.com/microsoft/onnxruntime). The MT (static CRT) variant was chosen so no Visual C++ redistributable install is needed - relevant because the target machines have no admin rights.",
+      "extract": [
+        {
+          "from": "sherpa-onnx-v1.13.6-win-x64-shared-MT-Release/bin/sherpa-onnx-offline-speaker-diarization.exe",
+          "to": "bin/sherpa/sherpa-onnx-offline-speaker-diarization.exe"
+        },
+        {
+          "from": "sherpa-onnx-v1.13.6-win-x64-shared-MT-Release/bin/sherpa-onnx-version.exe",
+          "to": "bin/sherpa/sherpa-onnx-version.exe"
+        },
+        {
+          "from": "sherpa-onnx-v1.13.6-win-x64-shared-MT-Release/bin/onnxruntime.dll",
+          "to": "bin/sherpa/onnxruntime.dll"
+        },
+        {
+          "from": "sherpa-onnx-v1.13.6-win-x64-shared-MT-Release/bin/onnxruntime_providers_shared.dll",
+          "to": "bin/sherpa/onnxruntime_providers_shared.dll"
+        }
+      ]
+    },
+    {
+      "name": "diarization-segmentation-pyannote-3.0",
+      "version": "segmentation-3.0",
+      "purpose": "Speaker segmentation: finds who is speaking when (voice activity + overlap), before embeddings are clustered.",
+      "required": true,
+      "sourceRepo": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+      "filename": "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+      "sizeBytes": 6958444,
+      "sha256": "24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488",
+      "archiveType": "tar.bz2",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/pyannote/segmentation-3.0",
+      "licenseVerifiedFrom": "LICENSE file inside the archive: MIT License, Copyright (c) 2022 CNRS. Cross-checked against https://huggingface.co/api/models/pyannote/segmentation-3.0 -> cardData.license = mit.",
+      "licenseNote": "IMPORTANT for the IT package: the model is MIT, but the UPSTREAM HuggingFace repo pyannote/segmentation-3.0 is GATED (gated=auto - it requires accepting conditions and supplying contact details before HF will serve the file). We deliberately obtain the ONNX conversion from the k2-fsa GitHub release instead, which redistributes it with the MIT licence text included, so no HF account, token or gate acceptance is needed at install time. Only model.onnx is deployed; the archive also contains Python conversion scripts we do not ship.",
+      "extract": [
+        {
+          "from": "sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
+          "to": "models/diarization/sherpa-onnx-pyannote-segmentation-3-0.onnx"
+        },
+        {
+          "from": "sherpa-onnx-pyannote-segmentation-3-0/LICENSE",
+          "to": "models/diarization/sherpa-onnx-pyannote-segmentation-3-0.LICENSE.txt"
+        }
+      ]
+    },
+    {
+      "name": "diarization-embedding-campplus-zh-en",
+      "version": "3D-Speaker",
+      "purpose": "DEFAULT speaker embedding model (bilingual CAM++). Measured best on BOTH accuracy and speed: 100% attribution accuracy on the 3-speaker fixture in 103 s of diarization for 348 s of audio, versus 99.4% in 217 s for eres2netv2.",
+      "required": true,
+      "sourceRepo": "https://github.com/modelscope/3D-Speaker",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+      "filename": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+      "sizeBytes": 28281164,
+      "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2",
+      "archiveType": "none",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/modelscope/3D-Speaker -> license.spdx_id = Apache-2.0 (mirror alibaba-damo-academy/3D-Speaker also Apache-2.0). Redistributed as ONNX by k2-fsa under the speaker-recongition-models release tag (tag name misspelled upstream).",
+      "licenseNote": "Apache-2.0 permits commercial use. Note the zh-cn training data in the name: speaker embeddings are largely language-independent and this model measured best on our English test audio.",
+      "extract": [
+        {
+          "from": "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+          "to": "models/diarization/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+        }
+      ]
+    },
+    {
+      "name": "diarization-embedding-eres2netv2",
+      "version": "3D-Speaker",
+      "purpose": "Optional alternate: 99.4% accuracy but 2.1x slower than the default. Largest of the embedding models at 71 MB.",
+      "required": false,
+      "sourceRepo": "https://github.com/modelscope/3D-Speaker",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx",
+      "filename": "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx",
+      "sizeBytes": 71441526,
+      "sha256": "bf1a75b9930474cf3389ef415e6e5d38ca96fea4a3a00f7e301d080a58ee2239",
+      "archiveType": "none",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/modelscope/3D-Speaker -> license.spdx_id = Apache-2.0 (mirror alibaba-damo-academy/3D-Speaker also Apache-2.0). Redistributed as ONNX by k2-fsa under the speaker-recongition-models release tag (tag name misspelled upstream).",
+      "licenseNote": "Apache-2.0 permits commercial use. Note the zh-cn training data in the name: speaker embeddings are largely language-independent and this model measured best on our English test audio.",
+      "extract": [
+        {
+          "from": "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx",
+          "to": "models/diarization/3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx"
+        }
+      ]
+    },
+    {
+      "name": "diarization-embedding-eres2net-base",
+      "version": "3D-Speaker",
+      "purpose": "Optional alternate (the model sherpa-onnx uses in its own usage example).",
+      "required": false,
+      "sourceRepo": "https://github.com/modelscope/3D-Speaker",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+      "filename": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+      "sizeBytes": 39593761,
+      "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "archiveType": "none",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/modelscope/3D-Speaker -> license.spdx_id = Apache-2.0 (mirror alibaba-damo-academy/3D-Speaker also Apache-2.0). Redistributed as ONNX by k2-fsa under the speaker-recongition-models release tag (tag name misspelled upstream).",
+      "licenseNote": "Apache-2.0 permits commercial use. Note the zh-cn training data in the name: speaker embeddings are largely language-independent and this model measured best on our English test audio.",
+      "extract": [
+        {
+          "from": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+          "to": "models/diarization/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+        }
+      ]
+    },
+    {
+      "name": "diarization-embedding-eres2net-en",
+      "version": "3D-Speaker",
+      "purpose": "Optional alternate: English-only ERes2Net, 99.4% accuracy but 2.1x slower than the default.",
+      "required": false,
+      "sourceRepo": "https://github.com/modelscope/3D-Speaker",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_sv_en_voxceleb_16k.onnx",
+      "filename": "3dspeaker_speech_eres2net_sv_en_voxceleb_16k.onnx",
+      "sizeBytes": 26485263,
+      "sha256": "c59158379255ad66e161679cca6af8d52d51e389e3224ab7d7a7baae295c2db5",
+      "archiveType": "none",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/modelscope/3D-Speaker -> license.spdx_id = Apache-2.0 (mirror alibaba-damo-academy/3D-Speaker also Apache-2.0). Redistributed as ONNX by k2-fsa under the speaker-recongition-models release tag (tag name misspelled upstream).",
+      "licenseNote": "Apache-2.0 permits commercial use. Note the zh-cn training data in the name: speaker embeddings are largely language-independent and this model measured best on our English test audio.",
+      "extract": [
+        {
+          "from": "3dspeaker_speech_eres2net_sv_en_voxceleb_16k.onnx",
+          "to": "models/diarization/3dspeaker_speech_eres2net_sv_en_voxceleb_16k.onnx"
+        }
+      ]
+    },
+    {
+      "name": "diarization-embedding-campplus-en",
+      "version": "3D-Speaker",
+      "purpose": "NOT RECOMMENDED. Fastest of the set but measured only 58.3% attribution accuracy on the test fixture; kept in the manifest only to document that it was evaluated and rejected.",
+      "required": false,
+      "sourceRepo": "https://github.com/modelscope/3D-Speaker",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+      "filename": "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+      "sizeBytes": 29596978,
+      "sha256": "357a834f702b80161e5b981182c038e18553c1f2ca752ed6cec2052365d4129b",
+      "archiveType": "none",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/modelscope/3D-Speaker/blob/main/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/modelscope/3D-Speaker -> license.spdx_id = Apache-2.0 (mirror alibaba-damo-academy/3D-Speaker also Apache-2.0). Redistributed as ONNX by k2-fsa under the speaker-recongition-models release tag (tag name misspelled upstream).",
+      "licenseNote": "Apache-2.0 permits commercial use. Note the zh-cn training data in the name: speaker embeddings are largely language-independent and this model measured best on our English test audio.",
+      "extract": [
+        {
+          "from": "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+          "to": "models/diarization/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx"
+        }
+      ]
+    },
+    {
+      "name": "whisper-model-ggml-large-v3-turbo-q5_0",
+      "version": "ggml",
+      "purpose": "PREVIOUS default speech model, now the manual recovery path. large-v3-turbo quantised to q5_0. The DEFAULT is the q4_0 model derived at install time (see derivedComponents[]), which measured 1.39x faster on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture. This one is retained deliberately, not by inertia: it is the only large-v3-turbo variant that is actually HOSTED, so if the derivation ever fails on some future machine, setting transcription.model back to this filename in config.json gives a working install with nothing outside this manifest. There is no automatic fallback - that is a config edit, not engine behaviour.",
+      "required": true,
+      "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+      "filename": "ggml-large-v3-turbo-q5_0.bin",
+      "sizeBytes": 574041195,
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "archiveType": "none",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "licenseVerifiedFrom": "https://huggingface.co/api/models/ggerganov/whisper.cpp -> cardData.license = mit, gated = False. Upstream weights openai/whisper-large-v3-turbo are also MIT.",
+      "extract": [
+        {
+          "from": "ggml-large-v3-turbo-q5_0.bin",
+          "to": "models/ggml-large-v3-turbo-q5_0.bin"
+        }
+      ]
+    },
+    {
+      "name": "whisper-model-ggml-large-v3-turbo-f16",
+      "version": "ggml",
+      "purpose": "INSTALL-TIME SOURCE ONLY - not a shipped artefact, and the one component in this manifest that is deliberately absent when the install finishes. These are the published f16 large-v3-turbo weights, from which the installer derives the DEFAULT q4_0 model locally (see derivedComponents[]) and then deletes them. The alternative was shipping a q4_0 file that exists on exactly one laptop and appears in no manifest, which is what this change removes. Cost of the honest version: +1.55 GiB of one-time download, and zero net installed footprint.",
+      "required": true,
+      "installTimeOnly": true,
+      "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+      "filename": "ggml-large-v3-turbo.bin",
+      "sizeBytes": 1624555275,
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "archiveType": "none",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "licenseVerifiedFrom": "https://huggingface.co/api/models/ggerganov/whisper.cpp -> cardData.license = mit, gated = False. Upstream weights openai/whisper-large-v3-turbo are also MIT.",
+      "sha256VerifiedFrom": "MEASURED 2026-08-27 from the file actually downloaded on this device (1624555275 bytes, streamed SHA-256), and cross-checked against lfs.oid in https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main?recursive=true. The two agree. Corroborated a third way: quantising this file reproduces the pinned q4_0 hash byte for byte, and that q4_0 was originally produced from an INDEPENDENT download of these weights - so both downloads were identical. Note the HTTP ETag on the resolve URL is 5a4b65b0...42ad and is NOT this hash; see notes[].",
+      "downloadNote": "MEASURED: this transfer is large enough that Zscaler drops it mid-flight - it failed once at 982 MB on the reference run and completed on the automatic Range resume. Invoke-TiDownload's resume path is therefore load-bearing for this component, not a nicety.",
+      "extract": [
+        {
+          "from": "ggml-large-v3-turbo.bin",
+          "to": "models/ggml-large-v3-turbo.bin",
+          "note": "Staged here only so the quantiser has a stable path to read. The installer deletes it after deriving q4_0 and does not record it in install-manifest.json."
+        }
+      ]
+    },
+    {
+      "name": "whisper-model-ggml-small.en-q8_0",
+      "version": "ggml",
+      "purpose": "FAST MODE speech model - the model behind the second Send To entry, 'Heresay - Fast transcript (lower accuracy)'. English-only small, q8_0. MEASURED on the noisy fixture, transcribe-stage wall clock on an idle machine: 45.5 s against 105.0 s for the default q4_0, i.e. 2.31x faster at the stage and ~1.9x on the whole pipeline. Required, not optional: the installer creates that Send To entry unconditionally, so an install missing this model does not degrade gracefully - it gives the user a menu entry that opens an error box.",
+      "required": true,
+      "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q8_0.bin",
+      "filename": "ggml-small.en-q8_0.bin",
+      "sizeBytes": 264477561,
+      "sha256": "67a179f608ea6114bd3fdb9060e762b588a3fb3bd00c4387971be4d177958067",
+      "archiveType": "none",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "licenseVerifiedFrom": "https://huggingface.co/api/models/ggerganov/whisper.cpp -> cardData.license = mit, gated = False. Upstream weights openai/whisper-small.en are also MIT.",
+      "sha256VerifiedFrom": "MEASURED 2026-08-27 from the installed file on this device, and cross-checked against lfs.oid in https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main?recursive=true. The two agree.",
+      "extract": [
+        {
+          "from": "ggml-small.en-q8_0.bin",
+          "to": "models/ggml-small.en-q8_0.bin"
+        }
+      ]
+    },
+    {
+      "name": "whisper-model-ggml-base.en-q8_0",
+      "version": "ggml",
+      "purpose": "BEST-TIMESTAMPS speech model, and the fallback for the fast path. Backed the Send To entry 'Heresay - Fastest transcript (no speakers)' until 2026-08-27, when tiny.en-q8_0 took that role; kept because it is the most accurately TIMED model measured in this project - per-utterance onset error median 0.19 s, p90 0.39 s, max 0.65 s, better even than large-v3-turbo-q4_0 (max 1.48 s), because its shorter segments keep boundaries tight. Select it with transcription.model in config.json when timing matters more than speed. MEASURED 2026-08-27 on mains, 347.86 s fixture, WHOLE PIPELINE end to end: 68.21 s without diarization = 5.10x realtime, against under 1.45x for the default q4_0 entry, at 2.48% word error rate (one wrong word in 40 - essentially small.en's 2.37%). This is the first model in this project measured end to end rather than by stage ratio. NOTE the reason originally recorded here for preferring it over tiny.en - that 'these transcripts carry timestamps that get quoted verbatim' - was FALSE and was never checked with the requirements owner, who confirmed on 2026-08-27 that approximate timestamps are acceptable for the intended use. The genuine timestamp difference is real but small in the median and shows up as a single outlier; see the tiny.en-q8_0 entry. Required, not optional: it remains a manifest component so the fallback is always present rather than needing a download at the moment someone needs it.",
+      "required": true,
+      "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q8_0.bin",
+      "filename": "ggml-base.en-q8_0.bin",
+      "sizeBytes": 81781811,
+      "sha256": "a4d4a0768075e13cfd7e19df3ae2dbc4a68d37d36a7dad45e8410c9a34f8c87e",
+      "archiveType": "none",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "licenseVerifiedFrom": "https://huggingface.co/api/models/ggerganov/whisper.cpp -> cardData.license = mit, gated = False. Upstream weights openai/whisper-base.en are also MIT. Same repo and licence position as the already-shipped small.en-q8_0, so this adds no new trust boundary.",
+      "sha256VerifiedFrom": "MEASURED 2026-08-27 twice on this device - once on download and again after copying into vendor/models - and cross-checked against lfs.oid in https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main?recursive=true BEFORE downloading. All three agree. The API route was itself validated by confirming it reproduces the recorded hash of the already-installed ggml-small.en-q8_0.bin (67a179f6...), so it is a checked method rather than an assumed one. NOTE an HTTP ETag from this host is NOT the file hash - that error was made earlier on this project.",
+      "extract": [
+        {
+          "from": "ggml-base.en-q8_0.bin",
+          "to": "models/ggml-base.en-q8_0.bin"
+        }
+      ]
+    },
+    {
+      "name": "whisper-model-ggml-tiny.en-q8_0",
+      "version": "ggml",
+      "purpose": "FASTEST MODE speech model - backs the Send To entry 'Heresay - Fastest transcript (no speakers)', taking that role over from base.en-q8_0 on 2026-08-27. MEASURED same day, quiet, power state recorded (ACLineStatus=1, BatteryStatus=2 i.e. on AC not charging), 347.86 s fixture, TRANSCRIBE STAGE, two reps each: tiny.en 22.9 and 18.5 s against base.en's 30.7 and 35.1 s - about 1.6x. Word error 3.38% against base.en's 2.48%, i.e. roughly one wrong word in 30 rather than one in 40. Fabricates nothing: zero fabricated segments over the fixture's deliberate 11.7 s silence, verified against test/media/ground-truth.json. TIMESTAMPS, which is the axis this model was previously REJECTED on: measured systematically for the first time by test/perf/Measure-TimestampAccuracy.ps1, per-utterance onset error against ground truth is median 0.76 s and p90 1.51 s across 28 matched utterances, with ONE outlier at 10.50 s early (utterance 13). The earlier rejection quoted that single outlier as though it were the model's behaviour; the distribution shows 27 of 28 utterances inside 1.5 s. Accepted because the requirements owner confirmed on 2026-08-27 that approximate timing is acceptable for the intended use, and asked for maximum speed. base.en-q8_0 is retained and remains the best-timestamped model measured here (median 0.19 s, max 0.65 s - better even than large-v3-turbo-q4_0's 1.48 s max), selectable via transcription.model in config.json. Required, not optional: the installer creates that Send To entry unconditionally, so an install missing this model gives the user a menu entry that opens an error box.",
+      "required": true,
+      "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q8_0.bin",
+      "filename": "ggml-tiny.en-q8_0.bin",
+      "sizeBytes": 43550795,
+      "sha256": "5bc2b3860aa151a4c6e7bb095e1fcce7cf12c7b020ca08dcec0c6d018bb7dd94",
+      "archiveType": "none",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "licenseVerifiedFrom": "https://huggingface.co/api/models/ggerganov/whisper.cpp -> cardData.license = mit, gated = False. Upstream weights openai/whisper-tiny.en are also MIT. Same repo and licence position as the already-shipped small.en-q8_0 and base.en-q8_0, so this adds no new trust boundary.",
+      "sha256VerifiedFrom": "MEASURED 2026-08-27 on this device against the copy already in vendor/models, and cross-checked against lfs.oid in https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main?recursive=true. Both agree on the hash AND on sizeBytes 43550795. The API route was validated in the same call by confirming it reproduces this manifest's independently recorded hash for ggml-base.en-q8_0.bin (a4d4a076...), so it is a checked method rather than an assumed one. NOTE an HTTP ETag from this host is NOT the file hash - that error was made earlier on this project.",
+      "extract": [
+        {
+          "from": "ggml-tiny.en-q8_0.bin",
+          "to": "models/ggml-tiny.en-q8_0.bin"
+        }
+      ]
+    },
+    {
+      "name": "silero-vad",
+      "version": "v5.1.2",
+      "purpose": "Voice activity detection. whisper.cpp uses it to strip non-speech before the encoder, which is the single most effective mitigation for hallucinated text over silence.",
+      "required": true,
+      "sourceRepo": "https://github.com/snakers4/silero-vad",
+      "url": "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin",
+      "filename": "ggml-silero-v5.1.2.bin",
+      "sizeBytes": 885098,
+      "sha256": "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf",
+      "archiveType": "none",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/snakers4/silero-vad/blob/master/LICENSE",
+      "licenseVerifiedFrom": "https://api.github.com/repos/snakers4/silero-vad -> license.spdx_id = MIT; ggml conversion repo https://huggingface.co/api/models/ggml-org/whisper-vad -> cardData.license = mit.",
+      "licenseNote": "NOT in the ggerganov/whisper.cpp HF repo - it lives in ggml-org/whisper-vad. Easy to miss.",
+      "extract": [
+        {
+          "from": "ggml-silero-v5.1.2.bin",
+          "to": "models/ggml-silero-v5.1.2.bin"
+        }
+      ]
+    }
+  ],
+  "derivedComponents": [
+    {
+      "name": "whisper-model-ggml-large-v3-turbo-q4_0",
+      "version": "ggml",
+      "purpose": "DEFAULT speech model. large-v3-turbo quantised to q4_0. MEASURED 1.39x faster than the q5_0 it replaced on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture. The 0.34-point penalty q4_0 shows on clean audio disappears under noise, which is the case that matters.",
+      "required": true,
+      "whyDerived": "It does not exist upstream. There is NO q4_0 file anywhere in huggingface.co/ggerganov/whisper.cpp - confirmed 2026-08-27 against the repository tree API, zero matches for q4_0 - and every other hosted q4_0 variant that was tried returned 404. So the choice is between shipping a file that exists only because someone once ran an unvendored tool on one laptop, or deriving it here from published weights with a vendored tool. This is the second. It is the difference between an installer that works on one machine and an installer that works.",
+      "derivedFrom": "whisper-model-ggml-large-v3-turbo-f16",
+      "sourcePath": "models/ggml-large-v3-turbo.bin",
+      "tool": "bin/whisper/whisper-quantize.exe",
+      "toolFromComponent": "whisper.cpp",
+      "quantType": "q4_0",
+      "commandLine": "bin/whisper/whisper-quantize.exe models/ggml-large-v3-turbo.bin models/ggml-large-v3-turbo-q4_0.bin q4_0",
+      "deleteSourceAfter": true,
+      "target": "models/ggml-large-v3-turbo-q4_0.bin",
+      "sizeBytes": 473992235,
+      "sha256": "2ceb779ca61ce46ed6e9aa43c4a0f8a89a37f683df3c0ba3119238fcd5852155",
+      "license": "MIT",
+      "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "licenseNote": "Quantisation is a lossy numeric transform of the f16 weights and creates no new licensable work. The MIT terms of the upstream openai/whisper-large-v3-turbo weights carry through unchanged.",
+      "reproducibility": "MEASURED REPRODUCIBLE on this device, 2026-08-27. Two consecutive derivations from the same f16 input produced byte-identical output (473992235 bytes, SHA-256 2ceb779c...2155), and both matched a third copy that had been produced weeks earlier from an INDEPENDENT download of the f16 weights. Derivation cost 8-13 s of CPU, so it is noise against a 1.55 GiB download.",
+      "verificationPolicy": "sizeBytes is a HARD gate - the quantised size is fixed by the tensor shapes and the quant type, so it cannot legitimately vary, and a mismatch aborts the install. sha256 is compared and reported but is NOT a hard gate. Reason: whisper-quantize loads whichever ggml-cpu-*.dll matches the host CPU, so bit-identical output on a different microarchitecture is likely but not guaranteed, and a check that fails on every install of some future machine would be worse than no check at all - it would break exactly the clean-install case this whole component exists to fix. A mismatch is therefore a loud warning, the actual hash is recorded in install-manifest.json, and the artefact is still trusted because BOTH of its inputs were SHA-256 verified against this manifest: the f16 weights and the quantiser binary's containing archive. Provenance does not depend on the output hash matching.",
+      "installerNote": "Runs after all downloads and before install-manifest.json is written. Idempotent: an existing correct q4_0 suppresses both the derivation AND the 1.55 GiB f16 download, so a re-run costs one hash of the existing file. Recorded in install-manifest.json under files[] so uninstall removes it, and under derivedModels[] with its measured hash, its inputs, and whether it matched this pinned value."
+    }
+  ]
+}

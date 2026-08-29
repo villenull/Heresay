@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://transcribeit.local/contracts/turns.schema.json",
+  "title": "TranscribeIt transcript contract v1",
+  "description": "FROZEN CONTRACT. Produced by Track A (engine). Consumed by Track B (renderer). All times are seconds as floating point, measured from the start of the source media. Do not change field names or semantics without bumping schemaVersion.",
+  "type": "object",
+  "required": ["schemaVersion", "source", "processing", "speakers", "turns"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+
+    "source": {
+      "type": "object",
+      "required": ["path", "fileName", "durationSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "path":            { "type": "string", "description": "Absolute path to the original media file the user right-clicked." },
+        "fileName":        { "type": "string", "description": "Leaf name including extension, for display." },
+        "durationSeconds": { "type": "number", "minimum": 0, "description": "From ffprobe." },
+        "container":       { "type": ["string", "null"], "description": "ffprobe format_name, e.g. 'mov,mp4,m4a'." },
+        "audioCodec":      { "type": ["string", "null"], "description": "e.g. 'aac'." },
+        "sizeBytes":       { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+
+    "processing": {
+      "type": "object",
+      "required": ["processedAtUtc", "transcriptionModel", "language", "elapsedSeconds", "toolVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "processedAtUtc":      { "type": "string", "format": "date-time" },
+        "transcriptionModel":  { "type": "string", "description": "e.g. 'ggml-large-v3-turbo-q5_0'." },
+        "language":            { "type": "string", "description": "BCP-47-ish code Whisper detected or was told, e.g. 'en'." },
+        "languageAutoDetected":{ "type": "boolean" },
+        "diarizationSegmentationModel": { "type": ["string", "null"] },
+        "diarizationEmbeddingModel":    { "type": ["string", "null"] },
+        "speakerCountMode":    { "type": "string", "enum": ["auto", "fixed"], "description": "'fixed' when the user supplied a speaker count." },
+        "elapsedSeconds":      { "type": "number", "minimum": 0, "description": "Total wall-clock for the whole pipeline." },
+        "realTimeFactor":      { "type": ["number", "null"], "description": "durationSeconds / elapsedSeconds. >1 means faster than realtime." },
+        "toolVersion":         { "type": "string" }
+      }
+    },
+
+    "speakers": {
+      "type": "array",
+      "description": "One entry per distinct speaker found. Order is by first appearance, so Speaker 1 is whoever spoke first.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "totalSpeakingSeconds", "turnCount"],
+        "additionalProperties": false,
+        "properties": {
+          "id":                   { "type": "string", "pattern": "^S[0-9]+$", "description": "Stable internal id, e.g. 'S0'." },
+          "label":                { "type": "string", "description": "Display-ready label the renderer prints verbatim, e.g. 'Speaker 1'. The renderer must NOT derive its own labels." },
+          "totalSpeakingSeconds": { "type": "number", "minimum": 0 },
+          "turnCount":            { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+
+    "turns": {
+      "type": "array",
+      "description": "Contiguous single-speaker passages, sorted ascending by start. Adjacent turns never overlap.",
+      "items": {
+        "type": "object",
+        "required": ["index", "speaker", "speakerLabel", "start", "end", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "index":        { "type": "integer", "minimum": 0 },
+          "speaker":      { "type": "string", "pattern": "^S[0-9]+$", "description": "MUST reference an id declared in speakers[]. There is deliberately no sentinel for an unknown speaker: if diarization cannot attribute a passage confidently, assign it to the most likely speaker and set speakerUncertain=true rather than inventing an id. Consumers should still degrade gracefully if handed an unlisted id." },
+          "speakerLabel": { "type": "string", "description": "Denormalised copy of speakers[].label so the renderer needs no lookup." },
+          "start":        { "type": "number", "minimum": 0 },
+          "end":          { "type": "number", "minimum": 0 },
+          "text":         { "type": "string", "minLength": 1, "description": "Whitespace-normalised, leading/trailing trimmed. May contain punctuation from Whisper. Producers MUST NOT emit a turn whose text is empty or whitespace-only - drop the turn instead, because it renders as a bare speaker label with nothing after it. Consumers should nonetheless tolerate one without crashing." },
+          "confidence":   { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Mean word confidence, or null if unavailable." },
+          "speakerUncertain": { "type": "boolean", "default": false, "description": "True when diarization overlap was ambiguous. Renderer MAY mark these visually." },
+          "words": {
+            "type": "array",
+            "description": "Word-level timings. May be empty if token timings were unavailable, so the renderer must not depend on it.",
+            "items": {
+              "type": "object",
+              "required": ["text", "start", "end"],
+              "additionalProperties": false,
+              "properties": {
+                "text":       { "type": "string" },
+                "start":      { "type": "number", "minimum": 0 },
+                "end":        { "type": "number", "minimum": 0 },
+                "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "warnings": {
+      "type": "array",
+      "description": "Human-readable non-fatal issues. The renderer SHOULD surface these in the PDF so the reader knows the transcript's limits.",
+      "items": { "type": "string" }
+    }
+  }
+}

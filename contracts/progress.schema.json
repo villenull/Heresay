@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://transcribeit.local/contracts/progress.schema.json",
+  "title": "TranscribeIt progress event contract v1",
+  "description": "FROZEN CONTRACT. Emitted by Track A (engine) as JSON Lines - exactly one compact JSON object per line, UTF-8, newline-terminated, flushed immediately. Consumed by Track E (WPF taskbar UI) which tails the stream. The UI must ignore unrecognised 'type' values and unrecognised fields rather than failing, so the engine can add events later without breaking it.",
+
+  "$defs": {
+    "stage": {
+      "type": "string",
+      "enum": ["queued", "probe", "decode", "transcribe", "diarize", "merge", "render", "done", "error", "cancelled"],
+      "description": "Pipeline stage. Weights used to compute overallPercent are fixed in stageWeights below."
+    }
+  },
+
+  "stageWeights": {
+    "_comment": "NOT part of an event. Reference values the engine uses so the taskbar bar advances smoothly and never stalls. Must sum to 100.",
+    "probe": 1,
+    "decode": 2,
+    "transcribe": 85,
+    "diarize": 9,
+    "merge": 1,
+    "render": 2
+  },
+
+  "oneOf": [
+    {
+      "title": "progress",
+      "type": "object",
+      "required": ["type", "stage", "overallPercent"],
+      "properties": {
+        "type":          { "const": "progress" },
+        "stage":         { "$ref": "#/$defs/stage" },
+        "stagePercent":  { "type": ["number", "null"], "minimum": 0, "maximum": 100, "description": "Progress within the current stage. Null when the stage cannot report granular progress - the UI should then show an indeterminate/marquee taskbar state." },
+        "overallPercent":{ "type": "number", "minimum": 0, "maximum": 100, "description": "Authoritative value for TaskbarItemInfo.ProgressValue (divide by 100). Monotonically non-decreasing - the UI may assume it never goes backwards." },
+        "etaSeconds":    { "type": ["number", "null"], "minimum": 0, "description": "Smoothed estimate of seconds remaining for the CURRENT ITEM. Null means not yet estimable; the UI must then show 'estimating...' rather than '0 min left'." },
+        "message":       { "type": "string", "description": "Short human-readable status for the window body, e.g. 'Transcribing audio'." },
+        "itemIndex":     { "type": "integer", "minimum": 1, "description": "1-based index within a multi-select batch." },
+        "itemTotal":     { "type": "integer", "minimum": 1, "description": "Batch size. When >1 the UI shows 'File 2 of 5'." },
+        "itemName":      { "type": "string", "description": "Leaf filename of the item being processed." },
+        "timestamp":     { "type": "string", "format": "date-time" }
+      }
+    },
+    {
+      "title": "result",
+      "type": "object",
+      "required": ["type", "pdfPath"],
+      "properties": {
+        "type":         { "const": "result" },
+        "pdfPath":      { "type": "string", "description": "Absolute path to the produced PDF, in the same folder as the source. The UI wires 'Open PDF' and 'Open folder' to this." },
+        "turnsPath":    { "type": ["string", "null"], "description": "Absolute path to the intermediate turns JSON, if retained for debugging." },
+        "speakerCount": { "type": "integer", "minimum": 0 },
+        "elapsedSeconds": { "type": "number", "minimum": 0 },
+        "warnings":     { "type": "array", "items": { "type": "string" }, "description": "The UI SHOULD show a subtle notice when non-empty." },
+        "itemIndex":    { "type": "integer", "minimum": 1 },
+        "itemTotal":    { "type": "integer", "minimum": 1 },
+        "timestamp":    { "type": "string", "format": "date-time" }
+      }
+    },
+    {
+      "title": "error",
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type":      { "const": "error" },
+        "stage":     { "$ref": "#/$defs/stage" },
+        "message":   { "type": "string", "description": "User-facing, plain language. No stack traces - those go to logPath." },
+        "logPath":   { "type": ["string", "null"], "description": "Absolute path to the run log. The UI surfaces this as a clickable link." },
+        "fatal":     { "type": "boolean", "default": true, "description": "False means the batch continues with the next item; the UI keeps running rather than switching to the terminal error state." },
+        "itemIndex": { "type": "integer", "minimum": 1 },
+        "itemTotal": { "type": "integer", "minimum": 1 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    {
+      "title": "batchComplete",
+      "type": "object",
+      "required": ["type"],
+      "description": "Terminal event. The UI clears TaskbarItemInfo.ProgressState, sets the overlay badge, and calls FlashWindowEx exactly once on receiving this.",
+      "properties": {
+        "type":         { "const": "batchComplete" },
+        "succeeded":    { "type": "integer", "minimum": 0 },
+        "failed":       { "type": "integer", "minimum": 0 },
+        "pdfPaths":     { "type": "array", "items": { "type": "string" } },
+        "elapsedSeconds": { "type": "number", "minimum": 0 },
+        "timestamp":    { "type": "string", "format": "date-time" }
+      }
+    }
+  ]
+}

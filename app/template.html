@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="@@LANG_ATTR@@">
+<head>
+<meta charset="utf-8">
+<!--
+  TranscribeIt transcript template  (Track B / renderer)
+
+  SCOPE (decision 2026-08-26, recorded in contracts/CONTRACTS.md): the PDF
+  contains the transcript and nothing else. No header block, no metadata grid,
+  no warnings box, no speakers table, no legend, no end notes. The footer is a
+  page number. warnings[] deliberately do NOT appear here - they reach the user
+  through the completion UI instead. Do not reintroduce them.
+
+  OFFLINE BY CONSTRUCTION. This file must never make a network request: it
+  processes confidential client recordings. Everything is inline, there are no
+  external stylesheets, no webfonts, no images, no scripts. The Content-Security
+  -Policy below is belt-and-braces so that a future edit that accidentally adds
+  a remote reference fails closed rather than silently phoning home.
+
+  Placeholders are double-at-sign delimited tokens substituted by
+  app/Render-Pdf.ps1, which fails the render if any are left unfilled. All
+  substituted text is HTML-escaped by that script.
+-->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; font-src local; img-src 'none'; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<!-- The document title only reaches the PDF's Title property, never the page.
+     It is set deliberately: with no <title>, Chromium falls back to the source
+     URL, which would bake the render's temp path into the PDF metadata. -->
+<title>@@DOC_TITLE@@</title>
+<style>
+/* ------------------------------------------------------------------ page ---
+   Edge/Chromium 131+ implements CSS @page margin boxes, which is how the
+   running footer gets a real page number. Verified working on Edge 151.
+   Generous top margin because page 1 opens straight onto the first turn -
+   there is no masthead to hold the eye off the trimmed edge. */
+@page {
+  size: A4;
+  margin: 21mm 18mm 17mm 18mm;
+
+  @bottom-center {
+    content: counter(page);
+    font: 400 8pt "Segoe UI", Calibri, Arial, sans-serif;
+    color: #63625f;
+    vertical-align: top;
+    padding-top: 4mm;
+  }
+}
+
+/* ------------------------------------------------------------------ base --- */
+/* border-box everywhere, so padding and rules never push a block wider than
+   the text measure and knock the left edges out of alignment. */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 10.5pt;
+  line-height: 1.62;
+  color: #1a1a19;
+  background: #fff;
+}
+/* A deliberately narrow measure. The slack on the right is annotation space
+   on a printed copy, and keeps the text column at ~70 characters. */
+.doc { max-width: 152mm; }
+
+/* ------------------------------------------------------------ transcript --- */
+.turn {
+  display: grid; grid-template-columns: 17mm minmax(0, 1fr);
+  column-gap: 5mm;
+  margin: 0 0 4.6mm;
+  break-inside: avoid;          /* never split a normal turn across pages */
+  page-break-inside: avoid;
+}
+.turn:first-child { margin-top: 0; }
+.turn:last-child  { margin-bottom: 0; }
+
+/* Turns long enough that refusing to break them would blow a hole in the page.
+   These may split, but the label still cannot be orphaned (see .lab). */
+.turn.long { break-inside: auto; page-break-inside: auto; }
+.turn.long .txt { orphans: 3; widows: 3; }
+
+.ts {
+  font-family: Consolas, "Lucida Console", "Courier New", monospace;
+  font-size: 8pt; font-variant-numeric: tabular-nums;
+  color: #5f5d59; letter-spacing: -0.01em;
+  padding-top: 1.15mm; white-space: nowrap;
+  text-align: right;
+}
+.lab {
+  font-family: "Segoe UI", Calibri, Arial, sans-serif;
+  font-size: 8.5pt; font-weight: 700; letter-spacing: .035em;
+  margin-bottom: 0.5mm;
+  break-after: avoid; page-break-after: avoid;   /* label never ends a page */
+}
+.txt { margin: 0; }
+.txt p { margin: 0 0 2.2mm; }
+.txt p:last-child { margin-bottom: 0; }
+
+/* The coloured, patterned rule that identifies the speaker. Colour is only
+   ever a secondary cue: the label is always printed verbatim, and the rule
+   styles and widths differ per speaker so a greyscale print still separates
+   them without needing a legend. */
+.turn > .col { padding-left: 4mm; border-left-width: 3pt; border-left-style: solid; }
+
+/* Uncertain attribution. The tint gets a little vertical breathing room, and
+   the timestamp is nudged by exactly the same amount so the two columns stay
+   on a shared baseline with every other turn on the page. */
+.turn.unc > .col { background: #f6f4ef; padding: 0.9mm 3mm 1.1mm 4mm; }
+.turn.unc > .ts  { padding-top: 2.05mm; }
+.turn.unc .lab { border-bottom: 0.8pt dotted #8f8d87; display: inline-block;
+  padding-bottom: 0.4mm; }
+sup.dag { font-family: Georgia, serif; font-size: 8pt; font-weight: 400;
+  color: #5d4a12; padding-left: 0.6mm; }
+
+/* ------------------------------------------------------------------ empty ---
+   Retained on purpose. When there are no turns this is the only content in the
+   document, and a genuinely blank PDF is indistinguishable from a failed one. */
+.empty {
+  border: 0.5pt solid #dedcd7; background: #fafaf8;
+  padding: 9mm 7mm; text-align: center;
+  font-family: "Segoe UI", Calibri, Arial, sans-serif;
+}
+.empty strong { font-size: 10pt; display: block; margin-bottom: 1.8mm; }
+.empty span { font-size: 8.5pt; color: #63625f; }
+
+/* Per-speaker colour + border-style pairs, generated by Render-Pdf.ps1. For a
+   document with one distinct speaker this placeholder instead carries a single
+   neutral rule that removes the left rule entirely: no labels, no per-speaker
+   styling (user decision 2026-08-27, keyed on the turns data, not on how the
+   pipeline was invoked). The placeholder is filled on every path either way. */
+@@SPEAKER_CSS@@
+
+/* Screen preview only: give the un-printed HTML a page-like frame so the
+   fallback "open the HTML and press Ctrl+P" route still looks intentional. */
+@media screen {
+  body { background: #eceae5; padding: 12mm 0; }
+  .doc { background: #fff; max-width: 174mm; padding: 21mm 18mm 17mm;
+         margin: 0 auto; box-shadow: 0 1px 6px rgba(0,0,0,.16); }
+  .doc > * { max-width: 152mm; }
+}
+</style>
+</head>
+<body>
+<div class="doc">
+@@BODY@@
+</div>
+</body>
+</html>

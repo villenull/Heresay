@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "path": "C:\\Users\\you\\Downloads\\Weekly steerco 2026-08-19.mp4",
+    "fileName": "Weekly steerco 2026-08-19.mp4",
+    "durationSeconds": 3187.44,
+    "container": "mov,mp4,m4a,3gp,3g2,mj2",
+    "audioCodec": "aac",
+    "sizeBytes": 214839296
+  },
+  "processing": {
+    "processedAtUtc": "2026-08-26T11:42:07Z",
+    "transcriptionModel": "ggml-large-v3-turbo-q5_0",
+    "language": "en",
+    "languageAutoDetected": true,
+    "diarizationSegmentationModel": "sherpa-onnx-pyannote-segmentation-3-0",
+    "diarizationEmbeddingModel": "3dspeaker_eres2netv2_sv_zh-cn_16k-common",
+    "speakerCountMode": "auto",
+    "elapsedSeconds": 651.8,
+    "realTimeFactor": 4.89,
+    "toolVersion": "0.1.0"
+  },
+  "speakers": [
+    { "id": "S0", "label": "Speaker 1", "totalSpeakingSeconds": 91.2, "turnCount": 4 },
+    { "id": "S1", "label": "Speaker 2", "totalSpeakingSeconds": 108.9, "turnCount": 3 },
+    { "id": "S2", "label": "Speaker 3", "totalSpeakingSeconds": 44.0, "turnCount": 2 }
+  ],
+  "turns": [
+    {
+      "index": 0,
+      "speaker": "S0",
+      "speakerLabel": "Speaker 1",
+      "start": 2.14,
+      "end": 31.88,
+      "text": "Right, I think we have everyone. Thanks for making the time on a Friday. The agenda I circulated has three things on it: where we've landed on the cost baseline, the two workstreams that are running behind, and then I want to spend the back half on what we actually take to the board in September. Let's not relitigate the baseline numbers themselves, we did that last week.",
+      "confidence": 0.94,
+      "speakerUncertain": false,
+      "words": [
+        { "text": "Right,", "start": 2.14, "end": 2.51, "confidence": 0.97 },
+        { "text": "I", "start": 2.55, "end": 2.62, "confidence": 0.99 },
+        { "text": "think", "start": 2.66, "end": 2.89, "confidence": 0.98 },
+        { "text": "we", "start": 2.93, "end": 3.04, "confidence": 0.99 },
+        { "text": "have", "start": 3.08, "end": 3.29, "confidence": 0.96 },
+        { "text": "everyone.", "start": 3.33, "end": 3.91, "confidence": 0.95 }
+      ]
+    },
+    {
+      "index": 1,
+      "speaker": "S1",
+      "speakerLabel": "Speaker 2",
+      "start": 32.41,
+      "end": 34.02,
+      "text": "Sorry, can everyone hear me?",
+      "confidence": 0.71,
+      "speakerUncertain": true,
+      "words": []
+    },
+    {
+      "index": 2,
+      "speaker": "S0",
+      "speakerLabel": "Speaker 1",
+      "start": 34.30,
+      "end": 35.66,
+      "text": "You're fine, go ahead.",
+      "confidence": 0.91,
+      "speakerUncertain": false,
+      "words": []
+    },
+    {
+      "index": 3,
+      "speaker": "S1",
+      "speakerLabel": "Speaker 2",
+      "start": 36.02,
+      "end": 98.77,
+      "text": "Thanks. So on the baseline, we closed the gap that was open on Tuesday. The number is now eleven point four, not twelve point one, and the difference is almost entirely the contractor line in the Midlands sites. I want to be careful about how we present that, because if we show a reduction of seven hundred thousand between two consecutive board packs without explaining it, the first question we get is whether we trust our own data. So my suggestion is that we show the twelve point one, show the adjustment as a separate labelled line, and land on eleven point four. It's one extra row and it saves us twenty minutes of questions.",
+      "confidence": 0.93,
+      "speakerUncertain": false,
+      "words": []
+    },
+    {
+      "index": 4,
+      "speaker": "S2",
+      "speakerLabel": "Speaker 3",
+      "start": 99.10,
+      "end": 141.55,
+      "text": "I agree with that, and I'd go slightly further. The contractor line has moved three times now. Even if the current number is right, the pattern looks unstable from outside. Could we add a short note on why it keeps moving? My understanding is that it's a timing thing rather than a scope thing, but I don't think that's obvious to anyone who isn't in this meeting every week.",
+      "confidence": 0.90,
+      "speakerUncertain": false,
+      "words": []
+    },
+    {
+      "index": 5,
+      "speaker": "S0",
+      "speakerLabel": "Speaker 1",
+      "start": 142.08,
+      "end": 158.31,
+      "text": "That's fair. Can you own that note? Half a page, no more, and I'd like it inside the pack rather than as an appendix.",
+      "confidence": 0.95,
+      "speakerUncertain": false,
+      "words": []
+    },
+    {
+      "index": 6,
+      "speaker": "S2",
+      "speakerLabel": "Speaker 3",
+      "start": 158.62,
+      "end": 160.14,
+      "text": "Yes, I'll have it Monday.",
+      "confidence": 0.96,
+      "speakerUncertain": false,
+      "words": []
+    },
+    {
+      "index": 7,
+      "speaker": "S1",
+      "speakerLabel": "Speaker 2",
+      "start": 160.90,
+      "end": 205.43,
+      "text": "On the two workstreams that are behind. Procurement is behind because we're waiting on the vendor to come back on the licensing question, and I don't think that's recoverable this month. The data migration one is behind for a different reason, which is that we underestimated how much cleansing the legacy records needed. That one I do think is recoverable, but it needs two more people for about three weeks.",
+      "confidence": 0.92,
+      "speakerUncertain": false,
+      "words": []
+    },
+    {
+      "index": 8,
+      "speaker": "S0",
+      "speakerLabel": "Speaker 1",
+      "start": 206.00,
+      "end": 249.86,
+      "text": "Let me push back on the second one. We said three weeks a month ago as well. What's different about the estimate this time? Because if the answer is nothing, then adding two people just spreads the same uncertainty across more headcount, and I'd rather we descoped something and told the board we descoped it than quietly missed the date again.",
+      "confidence": 0.94,
+      "speakerUncertain": false,
+      "words": []
+    }
+  ],
+  "warnings": [
+    "Speaker attribution for 1 short turn was ambiguous and may be incorrect.",
+    "Audio contained 4 minutes 12 seconds of near-silence which was skipped."
+  ]
+}

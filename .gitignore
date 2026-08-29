@@ -1,0 +1,37 @@
+# Vendored binaries and models: 3.3 GB, fetched/derived by the installer from
+# contracts/download-manifest.json. Never source.
+vendor/
+
+# Runtime state written by the launcher and the UI.
+logs/
+
+# Build OUTPUTS only. build/Make-Distribution.ps1 and build/README.md are source
+# and stay tracked; the staged distribution and zips it produces do not.
+build/dist*/
+build/*.zip
+
+# Media. The fixtures are large and reproducible; ground-truth.json beside them is not,
+# and is deliberately still tracked.
+*.wav
+*.m4a
+*.mp3
+*.mp4
+*.flac
+*.ogg
+*.wma
+*.aac
+
+# Generated output: rendered PDFs, benchmark and accel harness results.
+*.pdf
+test/bench/out/
+test/bench/media/
+test/accel/work/
+test/accel/e2e/
+test/render/out/
+test/perf/out/
+
+# Formats the shell verb registers explicitly (.amr/.flv/.caf have no PerceivedType on
+# this device) so they can turn up as test media too.
+*.amr
+*.flv
+*.caf

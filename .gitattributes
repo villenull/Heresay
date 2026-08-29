@@ -1,0 +1,11 @@
+# Line endings in this tree are load-bearing, and mixed on purpose:
+#   app/Progress.ps1          LF only, no BOM
+#   app/Transcribe-Entry.ps1  CRLF, with exactly ONE deliberate bare LF (the $claimModel line)
+#
+# Git for Windows defaults to core.autocrlf=true, which would rewrite both on checkout and
+# change every file's SHA-256. That is not cosmetic here: install-manifest.json records the
+# SHA-256 of each deployed file and the installer verifies against it, so a checkout that
+# "helpfully" normalised line endings would show the whole app as drifted.
+#
+# -text disables all conversion in both directions. Bytes in, same bytes out.
+* -text

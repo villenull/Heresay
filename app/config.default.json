@@ -1,0 +1,126 @@
+{
+  "_comment": "TranscribeIt engine defaults. Owned by Track A. Track C's installer copies this to the install root as config.json; user edits there survive upgrades. Paths are relative to the install root and use forward slashes deliberately - .NET accepts them on Windows and it keeps this file free of escaped backslashes.",
+  "configVersion": 1,
+  "toolVersion": "0.1.0",
+
+  "paths": {
+    "ffmpeg": "vendor/ffmpeg/ffmpeg.exe",
+    "ffprobe": "vendor/ffmpeg/ffprobe.exe",
+    "whisperCli": "vendor/whisper/whisper-cli.exe",
+    "diarizer": "vendor/sherpa/sherpa-onnx-offline-speaker-diarization.exe",
+    "modelDir": "vendor/models",
+    "renderer": "app/Render-Pdf.ps1",
+    "merger": "app/Merge-Diarization.ps1"
+  },
+
+  "render": {
+    "_comment": "Track B owns Render-Pdf.ps1 and the contracts do not pin its parameter names, so the engine passes them from here. Verified against Track B's shipped signature: param(-TurnsJson, -OutputPdf, ...). If Track B renames them, change these two strings rather than the engine; the engine also retries positionally if the named form fails.",
+    "turnsParam": "-TurnsJson",
+    "outputParam": "-OutputPdf",
+    "_inProcessComment": "Same mechanism and rationale as merge.inProcess: saves the child pwsh's ~2.8 s pre-script cost plus its teardown; headless Edge - the render's actual work - is a grandchild process either way and unaffected. Render-Pdf.ps1 signals failure with `exit`, which under the call operator ends only its own script scope; its stderr goes to [Console]::Error and the engine captures it by swapping the writer around the call. Set false to restore the old child-process path.",
+    "inProcess": true
+  },
+
+  "transcription": {
+    "_comment": "model is a filename inside paths.modelDir. threads 0 = auto-detect.",
+    "model": "ggml-large-v3-turbo-q4_0.bin",
+
+    "_languageComment": "MEASURED, and the largest single fixed-overhead win in the pipeline. whisper's encoder always processes a full 30-second window whatever the audio actually contains, and 'auto' spends one ENTIRE extra encoder pass on language detection before transcribing anything. Counted from whisper_print_timings encoder-run totals on a 40 s clip, repeated three times each and identical every time: -l auto = 3 encoder runs, -l en = 2. On this machine an encoder pass is ~27 s, so 'auto' costs a constant ~27 s on EVERY file - about 20% of a short run, and noise on a long one. Forcing the language also removes a real failure mode: a noisy or non-speech first 30 seconds can mis-detect and produce a page of garbage. All audio in the intended use is English. Set this to 'auto', or pass -Language auto, if that stops being true.",
+    "language": "en",
+
+    "_threadsComment": "0 = auto, which is (logical cores - 2) = 12 here. MEASURED IDLE on the full 347.9 s fixture with large-v3-turbo, transcribe-only real-time factor: 4 threads 0.90, 8 threads 1.09, 12 threads 1.33, 14 threads 1.28. 12 is the measured optimum and 14 is worse, so leaving two threads for the OS is right. An earlier measurement on a 120 s clip while other work was running suggested gains flattened after 8 threads; that was contention, not the hardware, and it was wrong. Set -Threads explicitly to trade transcription speed for a more responsive machine.",
+    "threads": 0,
+    "processors": 1,
+
+    "_threadsWhenConcurrentComment": "Threads for whisper while the diarizer runs alongside it (see diarization.concurrentWithTranscription). 0 = leave whisper's count alone, which is where MEASUREMENT left it: on only 4 threads the diarizer finished in 8.7 s against a 100 s transcribe on a 40 s clip, and 71 s against a 927 s transcribe on the full fixture. It has an order of magnitude of margin, so funding it out of the long pole's budget would slow the run to speed up something that is already free. This knob exists for a future where a much faster model makes the diarizer the long pole. An explicit -Threads on the command line overrides it.",
+    "threadsWhenConcurrent": 0,
+
+    "_beamComment": "MEASURED: beam search is not worth its cost here. With the small model, beam 5 gave 12.6% word error rate at real-time factor 1.17, and beam 1 gave 13.2% at 2.23 - roughly twice the speed for 0.6 percentage points. With large-v3-turbo, beam 5 and beam 1 produced IDENTICAL 10.7% word error rate while beam 5 was 21% slower. Greedy decoding it is. Raise to 5 only if a specific recording decodes badly.",
+    "beamSize": 1,
+    "bestOf": 1,
+
+    "_hallucinationComment": "Whisper invents fluent text over silence and music. Four mitigations, in order of how much they actually help on meeting audio. 1) Silero VAD strips non-speech before the encoder ever sees it, which removes the input that causes the failure rather than filtering the symptom; measured FREE - word error rate was 10.7% with VAD versus 11.0% without, at no speed cost. 2) maxContext caps carried-over decoded text so a repetition loop cannot feed itself across segment boundaries; -1 (whisper's default) is unbounded and is the single biggest cause of runaway repeats on long recordings. 3) noSpeechThreshold below whisper's 0.60 default makes the decoder readier to call a segment silent. 4) suppressNonSpeechTokens drops music/sound-effect tokens such as (applause).",
+    "useVad": true,
+    "vadModel": "ggml-silero-v5.1.2.bin",
+    "vadThreshold": 0.5,
+    "vadMinSpeechDurationMs": 250,
+    "vadMinSilenceDurationMs": 100,
+    "vadSpeechPadMs": 60,
+    "vadMaxSpeechDurationSeconds": 30,
+    "maxContext": 64,
+    "noSpeechThreshold": 0.45,
+    "entropyThreshold": 2.4,
+    "logprobThreshold": -1.0,
+    "suppressNonSpeechTokens": true,
+    "temperature": 0.0,
+    "temperatureInc": 0.2,
+    "tokenTimestamps": true
+  },
+
+  "diarization": {
+    "_comment": "segmentationModel and embeddingModel are relative to paths.modelDir. promptForSpeakerCount is read by the shell integration, not by the engine; when the user gives a count the engine switches to --clustering.num-clusters, otherwise it uses --clustering.cluster-threshold.",
+    "enabled": true,
+    "promptForSpeakerCount": false,
+    "segmentationModel": "diarization/sherpa-onnx-pyannote-segmentation-3-0.onnx",
+
+    "_embeddingComment": "MEASURED choice. On the 3-speaker benchmark fixture, attribution accuracy and diarization wall clock for 348 s of audio were: campplus_zh_en_advanced 100% / 103 s; eres2netv2 99.4% / 217 s; eres2net_en_voxceleb 99.4% / 220 s; campplus_en_voxceleb 58.3% / 60 s. The bilingual 'advanced' CAM++ model was both the most accurate and twice as fast as the ERes2Net family, so reputation-based picks (eres2netv2, or the English-specific CAM++) would both have been wrong here.",
+    "embeddingModel": "diarization/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+
+    "_thresholdComment": "0.5 is sherpa's own default and measured as good as anything higher. Lower is clearly worse: 0.4 split 3 real speakers into 8. Between 0.5 and 0.8 the result was identical (4 clusters for 3 real speakers), so auto-detect reliably over-counts by about one; the merger emits a warning when a detected speaker holds a negligible share of the speech.",
+    "clusterThreshold": 0.5,
+    "minDurationOn": 0.3,
+    "minDurationOff": 0.5,
+
+    "_windowShiftComment": "MEASURED speed lever, and the reason the diarize stage fits its 9% weight. With the default embedding model: 0.1 -> 100% accuracy in 103 s; 0.25 -> 99.4% in 46 s; 0.5 -> 99.4% in 26 s. 0.25 buys a 2.2x speed-up for 0.6 percentage points of accuracy. RAISED TO 0.5 on 2026-08-27, and the cost was then ISOLATED by measurement rather than assumed. Two whole-pipeline runs differing ONLY in this value, same model (tiny.en-q8_0), same fixture, quiet-gated, scored with test/accel/Score-Attribution.ps1: attribution came out IDENTICAL to the digit - TextAcc 97.36%, 23 misattributed words of 872, TimeWrongSpeakerPct 3.63%, all three speakers mapped correctly (S0=A,S1=B,S2=C), 0 unmapped - at BOTH 0.25 and 0.5. So this change costs zero measurable attribution accuracy on this fixture, which confirms the earlier 99.4%-at-both figure by a second independent route. The speed effect is larger than the diarizer's own time suggests: at 0.25 diarization took 53.5 s and OUTLIVED transcription, leaving a 15.06 s residual ON the critical path; at 0.5 it took 38.9 s and the residual fell to 0.11 s, i.e. it went back to being fully hidden behind transcription. Whole item 59.7 s -> 54.8 s. It was previously kept at 0.25 on a REASONED RISK, not a measurement - 'a coarser window is exactly what would hurt on real crosstalk' - which remains untested because no crosstalk fixture exists, and is the one caveat that survives. If speaker attribution ever looks wrong on a recording with people talking over each other, set this back to 0.25 first: that is the single most likely cause.",
+    "windowShiftRatio": 0.5,
+    "threads": 0,
+
+    "_concurrencyComment": "Diarization and transcription read the same 16 kHz WAV and neither reads the other's output - only the merge needs both - so the diarizer runs ALONGSIDE whisper and its wall clock leaves the critical path. concurrentThreads is its budget while overlapped, deliberately small: whisper is the long pole and the machine has 14 logical cores against whisper's 12, so a small diarizer mostly consumes the slack rather than stealing from whisper. Set concurrentWithTranscription false to go back to running them back to back.",
+    "concurrentWithTranscription": true,
+    "concurrentThreads": 4,
+
+    "maxExpectedSpeakers": 4
+  },
+
+  "merge": {
+    "_comment": "Turn shaping. pauseSplitSeconds starts a new turn across a silence even when the speaker has not changed. Beyond softMaxTurnCharacters the merger breaks at the next sentence end; hardMaxTurnCharacters breaks regardless, so one long monologue cannot become an unreadable wall of text.",
+    "_inProcessComment": "true runs Merge-Diarization.ps1 inside the engine's own pwsh via the call operator instead of spawning a child pwsh. MEASURED on this machine (test/perf/results-stage-startup.json, AC, quiet): a fresh pwsh costs ~2.3 s before the merger's first statement, and the full child run ~3.0 s where the identical merge in-process is 0.3-0.9 s - output verified identical apart from processedAtUtc. Cost of true: a cancel clicked mid-merge is honoured after the merge finishes rather than during it (sub-second at current sizes). Set false to restore the old child-process path.",
+    "inProcess": true,
+    "pauseSplitSeconds": 1.5,
+    "softMaxTurnCharacters": 420,
+    "hardMaxTurnCharacters": 900,
+    "ambiguityMarginSeconds": 0.2,
+    "minOverlapRatio": 0.5,
+    "longSilenceWarnSeconds": 30
+  },
+
+  "performance": {
+    "_comment": "MEASURED on an Intel Core Ultra 7 165U (12 cores / 14 threads), CPU-only, OpenBLAS build. realTimeFactor uses the same definition as turns.schema.json: mediaDurationSeconds / wallClockSeconds for the WHOLE pipeline, so a value above 1 is faster than realtime and below 1 is slower. The engine seeds its ETA from the entry matching the selected model and then continuously corrects it against observed throughput, so an imperfect seed self-heals within about 30 seconds.",
+    "_derivation": "large-v3-turbo is the mean of THREE whole-pipeline measurements on the same 347.9 s recording with these defaults: 346.0 s, 383.1 s and 422.5 s, i.e. real-time factors 1.01, 0.91 and 0.82. The spread is thermal - this is a 15 W ultraportable and sustained all-core load slows every stage, including diarization and PDF render which do not depend on the model. 0.9 is the honest middle rather than the flattering best. The other two models are derived additively, which is more sound than scaling: the non-transcription stages cost a roughly fixed ~50 s for this file regardless of model, so pipelineTime = transcribeTime + 50 s. From measured idle transcribe times (turbo 262 s at 12 threads, medium 217 s and small 76 s at 8) that gives medium ~1.2 and small ~2.5. Precision beyond one decimal would be false; the ETA re-derives itself from observed throughput within about 30 seconds anyway.",
+    "_q4Derivation": "Track A2, 2026-08-26: large-v3-turbo q4_0 is 1.39x faster than q5_0 on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture, with no fabrication and a clean silence window. The 0.34-point penalty q4_0 shows on clean audio disappears under noise, which is the case that matters. Seed derived from the q5_0 seed rather than measured end to end: transcription is ~0.85 of the pipeline, so 1/(0.85/1.39 + 0.15) = 1.31x overall, and 0.9 x 1.31 = 1.18. Rounded DOWN to 1.1 on purpose - an ETA seeded too long finishes early and self-corrects within ~30 s, whereas seeding it short reproduces the '0 min left while still running' pathology the progress contract calls the worst possible bug.",
+    "_fastModeDerivation": "ggml-small.en-q8_0.bin is the FAST MODE model - the second Send To entry, 'Heresay - Fast transcript (lower accuracy)'. Its seed was 3.0 and is now 2.0, because 3.0 was derived against the wrong baseline and erred in the one direction that hurts. The audit: benchmark-v2.md 5.0 measures TRANSCRIBE-STAGE wall clock on the noisy fixture back to back on an idle machine - q5_0 146.3 s, q4_0 105.0 s, small.en-q8_0 45.5 s. Against the CURRENT default q4_0 the stage ratio is 105.0/45.5 = 2.31x, which is the 2.3x figure; the 3.22x headline is against the RETIRED q5_0 default and using it here double-counts the q4_0 win that is already baked into the 1.1 seed. Converting a stage ratio to a whole-pipeline ratio at transcribeStageShare 0.85: 1/(0.85/2.31 + 0.15) = 1.93x. Applied to the shipped q4_0 seed of 1.1 that gives 2.13; applied to the unrounded q4_0 derivation of 1.18 it gives 2.28, which is also the bottom of the 2.2-2.5 range benchmark-v2.md 8.2 quotes independently. Every route lands in 2.1-2.3 and none reaches 3.0. Rounded DOWN to 2.0, preserving exactly the conservatism of the q4_0 seed (itself rounded down, 1.18 -> 1.1): an ETA seeded too LONG finishes early and self-corrects from observed throughput within about 30 seconds, whereas seeding it SHORT reproduces the '0 min left while still running' pathology the progress contract calls the worst possible bug. At 3.0 a 60-minute recording would promise 20 minutes and overrun it; at 2.0 it promises 30 and beats it. This entry existing at all is what stops the model falling through to _default 0.8, which would promise 75 minutes.",
+    "_fastestModeDerivation": "ggml-base.en-q8_0.bin backs the Send To entry 'Heresay - Fastest transcript (no speakers)'. UNLIKE every other seed in this table it is derived from a DIRECT whole-pipeline measurement rather than from a stage ratio, because stage ratios are what produced this project's worst estimate error. Measured 2026-08-27 on mains, 347.86 s fixture, single runs: 68.21 s WITHOUT diarization = 5.10x, and 80.36 s WITH = 4.33x. The seed must cover the SLOWER of the two, because realTimeFactor is keyed on the model alone and cannot see whether -NoDiarization was passed - so 4.33x is the number to be conservative about, not 5.10x. Rounded DOWN to 3.5, holding the same ~80% conservatism as the other seeds (q4_0 measured ~1.45x on mains, seeded 1.1; small.en seeded 2.0). At 3.5 a 60-minute recording promises ~17 minutes and takes ~12, so it finishes early and self-corrects within about 30 seconds; seeding it at the measured 5.10x would promise ~12 and overrun whenever speakers are left on, reproducing the '0 min left while still running' pathology the progress contract calls the worst possible bug. This entry existing at all is what stops the model falling through to _default 0.8, which would promise 75 minutes for a job that takes 68 seconds. NOTE these are SINGLE runs, not repeats - the fixture is short enough at these speeds that fixed overhead dominates and repeats spread ~45%; re-derive from repeats before tightening.",
+    "realTimeFactor": {
+      "ggml-large-v3-turbo-q4_0.bin": 1.1,
+      "ggml-large-v3-turbo-q5_0.bin": 0.9,
+      "ggml-small.en-q8_0.bin": 2.0,
+      "ggml-base.en-q8_0.bin": 3.5,
+      "ggml-tiny.en-q8_0.bin": 4.5,
+      "ggml-medium-q5_0.bin": 1.2,
+      "ggml-small-q5_1.bin": 2.5,
+      "_default": 0.8
+    },
+    "_tinyEnDerivation": "ggml-tiny.en-q8_0.bin backs the Send To entry 'Heresay - Fastest transcript (no speakers)' from 2026-08-27, taking over from base.en-q8_0. Derived from DIRECT whole-pipeline measurement, not a stage ratio, for the same reason the base.en seed was: stage ratios produced this project's worst estimate error. Measured 2026-08-27, quiet-gated, on AC with a full battery, 347.86 s fixture, merge and render running in-process. NO SPEAKERS, two reps ALTERNATED against base.en to cancel drift: item done 24.7 s and 22.9 s (transcribe 19.13 and 17.13) against base.en's 40.3 s and 36.2 s (transcribe 34.38 and 30.18) - 1.61x end to end. WITH SPEAKERS, one rep at windowShiftRatio 0.5: 54.8 s, i.e. about 6.0x including engine startup. The seed must cover the SLOWER of the two, because realTimeFactor is keyed on the model alone and cannot see whether -NoDiarization was passed, so 6.0x is the number to be conservative about and 14x is not. Rounded DOWN to 4.5, which is 75% of it - slightly more conservative than base.en's 3.5 against a measured 4.33x. At 4.5 a 60-minute recording promises about 13 minutes and takes about 10 with speakers or about 4.5 without, so it finishes early in both cases and self-corrects from observed throughput within about 30 seconds. Seeding it at the no-speakers 14x would promise 4 minutes and overrun badly whenever speakers were left on, reproducing the '0 min left while still running' pathology the progress contract calls the worst possible bug. CAUTION the with-speakers arm is a SINGLE run; re-derive from repeats before tightening.",
+    "_seedStalenessComment": "Track B2: realTimeFactor and transcribeStageShare are now CONSERVATIVE rather than wrong. Forcing -l en and overlapping diarization made the pipeline faster (roughly 15-18% on the full fixture by reconstruction), and hiding diarization behind transcription raised transcription's share above 0.85. Both were left as they are on purpose: an ETA seeded too LONG merely finishes early and self-corrects from observed throughput within about 30 seconds, whereas seeding it too short reproduces the '0 min left while still running' pathology the progress contract calls the worst possible bug. Re-derive both from a quiet-machine run before tightening them.",
+    "transcribeStageShare": 0.85,
+    "etaSmoothingAlpha": 0.3,
+    "etaThroughputWindow": 5,
+    "progressIntervalSeconds": 2.0
+  },
+
+  "output": {
+    "_comment": "pdfSuffix is appended to the source file's base name. The source folder must only ever gain the final PDF; everything else lives in %TEMP%.",
+    "pdfSuffix": ".transcript.pdf",
+    "keepTurnsJsonBesidePdf": false
+  }
+}
