@@ -134,7 +134,7 @@ if ($modelName) {
         [void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms')
         [System.Windows.Forms.MessageBox]::Show(
             "Fast mode needs the speech model '$modelName', which is not installed:`n`n$modelDir`n`n" +
-            'Use "Heresay - Generate transcript (PDF)" instead, or re-run the installer.',
+            'Re-run the installer to download it.',
             'Heresay', 'OK', 'Error') | Out-Null
         exit 3
     }
