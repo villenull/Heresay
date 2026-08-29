@@ -90,17 +90,29 @@ Design notes worth knowing before you dig in:
 
 ## Speed and accuracy profiles
 
-The right-click entry uses the fastest profile: English-only `tiny` model, no speaker
-separation, ~14× real time, roughly one imperfect word in thirty — great for meeting
-notes. Editing `config.json` in the install folder switches profiles:
+Both menu entries — the right-click verb and the *Send to* shortcut — pin the fastest
+profile on the command line: English-only `tiny` model, no speaker separation, ~14×
+real time, roughly one imperfect word in thirty. That is the right trade for meeting
+notes.
 
 | Profile | Model | Speakers | Speed (CPU) | Word error |
 |---|---|---|---|---|
-| Fastest (default) | `tiny.en` q8 | no | ~14× real time | ~3.4 % |
+| Fastest — what both menu entries run | `tiny.en` q8 | no | ~14× real time | ~3.4 % |
 | Balanced | `base.en` q8 | optional | ~9× | ~2.5 % |
-| Quality | `large-v3-turbo` q4 | yes | ~1.5–2× | ~1.6 % |
+| Quality — the `config.json` default | `large-v3-turbo` q4 | yes | ~1.5–2× | ~1.6 % |
 
 (Measured end-to-end on a 12-core ultraportable; your numbers will vary.)
+
+`config.json` in the install folder ships the Quality profile, and it governs any run
+that does not override it:
+
+```powershell
+pwsh -File "$env:LOCALAPPDATA\Programs\TranscribeIt\app\Transcribe-Entry.ps1" recording.m4a
+```
+
+Editing `config.json` alone will **not** change the menu entries: both pass `-Model` and
+`-NoDiarization`, which take precedence over the file. To change what the right-click
+entry runs, edit the command in `app/Register-ShellVerbs.ps1` and re-run it.
 
 ## Building the distribution
 

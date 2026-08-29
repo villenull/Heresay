@@ -899,7 +899,7 @@ else {
 # false.
 if ($SkipSendTo) {
     Write-TiStep 'Send To entries skipped (-SkipSendTo)'
-    Write-TiInfo 'the four existing entries, wherever they point, are left exactly as they are'
+    Write-TiInfo 'any existing entries, wherever they point, are left exactly as they are'
 }
 elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Create Send To entries')) {
     Write-TiStep 'Creating the Send To entries'
@@ -915,7 +915,8 @@ elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Create Send To entries')) {
 }
 else {
     Write-TiStep 'Creating the Send To entries'
-    Write-TiInfo '    would create 4 Send To entries under %APPDATA%\Microsoft\Windows\SendTo'
+    $wouldCreate = @(New-TiSendToShortcuts -InstallRoot $InstallRoot -ListOnly)
+    Write-TiInfo ('    would create {0} Send To entr{1} under %APPDATA%\Microsoft\Windows\SendTo' -f $wouldCreate.Count, $(if ($wouldCreate.Count -eq 1) { 'y' } else { 'ies' }))
 }
 
 Write-TiStep 'Writing install-manifest.json'
