@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-    "Send to -> Compress for Word transcription" - strips any audio/video file down to a
-    compact mono MP3 that fits comfortably under Word for the web's ~300 MB upload limit.
+    Strips any audio/video file down to a compact mono MP3 that fits comfortably under
+    Word for the web's ~300 MB upload limit. Run it directly - the "Compress for Word"
+    Send To entry was retired, so this script has no menu entry of its own.
 
 .DESCRIPTION
     The Word for the web transcription flow works well, but two things get in the
@@ -22,8 +23,8 @@
     re-encoding it would only lose quality for no reason.
 
 .PARAMETER Paths
-    Files to convert. Explorer's Send To passes every selected item as a separate
-    argument, so this collects them all.
+    Files to convert. Each path is passed as a separate argument, so this collects
+    them all.
 
 .PARAMETER TargetMB
     Size ceiling to aim under. Default 280, leaving headroom below Word's ~300 MB.
@@ -34,7 +35,7 @@
 .PARAMETER OpenWord
     After converting, open a new Word for the web document in the default browser, so the
     only remaining steps are the upload itself. Off by default so the script never
-    launches a browser unless asked; the Send To shortcut passes it.
+    launches a browser unless asked.
 
 .NOTES
     PositionalBinding = $false is load-bearing, exactly as in SendTo-Heresay.ps1: with
@@ -93,7 +94,8 @@ foreach ($tool in @($ffmpeg, $ffprobe)) {
 
 $files = @($Paths | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) })
 if (-not $files.Count) {
-    Show-Message 'Select one or more audio or video files, then use Send to > Compress for Word.'
+    Show-Message ("No audio or video files were passed. Run this script with the file paths as arguments, for example:`n`n" +
+                  'pwsh -File Compress-ForWord.ps1 "C:\path\meeting.mp4"')
     exit 2
 }
 
