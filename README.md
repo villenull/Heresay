@@ -9,19 +9,20 @@ no admin rights.
 
 <p align="center">
   <img src="docs/images/transcript-example.png" width="720"
-       alt="Example transcript PDF: timestamped turns, colour-coded speakers, uncertainty markers">
+       alt="Transcript PDF from the default profile: timestamped turns, text only, no speaker labels">
 </p>
 
 ## How it looks in use
 
-Right-click any audio or video file and pick **Transcribe in PDF** — it's in the menu
-itself and under *Send to* (illustration below). A small progress window appears
+Right-click any audio or video file and pick **Transcribe in PDF** — on Windows 11 it
+sits under *Show more options*. *Send to* carries the same command as **Heresay -
+Transcribe in PDF**, which shows in the modern menu too. A small progress window appears
 bottom-right with a live time estimate; when it closes, the PDF is sitting next to
 your recording.
 
 <p align="center">
   <img src="docs/images/right-click-menu.png" width="640"
-       alt="Windows context menu with the Transcribe in PDF entry, and the same entry under Send to">
+       alt="Windows context menu showing the Transcribe in PDF entry, and the Send to submenu">
 </p>
 
 ## Highlights
@@ -31,9 +32,16 @@ your recording.
 - **Private by construction.** Speech recognition, speaker separation, and PDF
   rendering all run on your own machine. The generated HTML even ships a
   `default-src 'none'` Content-Security-Policy, so a render *cannot* touch the network.
-- **Speaker separation, when you want it.** The default profile favours speed and
-  skips it; the full pipeline diarises up to several speakers and colour-codes them
-  in the PDF (see the example above). Single-voice transcripts render label-free.
+- **Speaker separation, when you want it.** The menu entry favours speed and skips it,
+  so the transcript above renders label-free — timestamps and text only. Switch to the
+  full pipeline and it diarises up to several speakers and colour-codes them, marking
+  turns it is unsure of with a dagger:
+
+<p align="center">
+  <img src="docs/images/transcript-speakers.png" width="720"
+       alt="Transcript PDF from the Quality profile: three colour-coded speakers, a dagger on an uncertain turn">
+</p>
+
 - **A real installer.** Double-click **Install Heresay** in the release zip and a
   setup wizard walks you through it — download progress bars included. Per-user
   install, no administrator rights, clean uninstall. If PowerShell 7 is missing, the

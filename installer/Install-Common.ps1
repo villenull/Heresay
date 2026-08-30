@@ -839,7 +839,7 @@ function New-TiSendToShortcuts {
     # real, in-reference speech, verified against test\media\ground-truth.json. The
     # "small models hallucinate" premise was superseded - see docs\benchmark-v2.md 4.
     $entries = @(
-        @{ Name   = 'Transcribe in PDF'
+        @{ Name   = 'Heresay - Transcribe in PDF'
            Script = 'app\SendTo-Heresay.ps1'
            Extra  = ' -Model "ggml-tiny.en-q8_0.bin" -NoDiarization'
            Desc   = 'Fastest transcription: tiny English model, no speaker separation. The PDF lands next to the file.' }
@@ -848,8 +848,9 @@ function New-TiSendToShortcuts {
     # Names this function USED to install. Renamed or retired entries must be swept
     # by their old names, or they survive every future install AND uninstall as dead
     # menu items: both the create path and -Remove iterate the CURRENT $entries,
-    # which no longer knows these six.
+    # which no longer knows these seven.
     $legacyNames = @(
+        'Transcribe in PDF'
         'Heresay - Generate transcript (PDF)'
         'Heresay - Fast transcript (lower accuracy)'
         'Heresay - Solo recording (no speakers)'
@@ -868,9 +869,12 @@ function New-TiSendToShortcuts {
 
     # Sweep the retired names on BOTH the create and the -Remove path (this runs
     # before the branch, so it covers both). The entry list shrank from six to one on
-    # 2026-08-27; the five other .lnk files - and the renamed sixth - would otherwise
-    # sit in the Send To menu forever, because nothing that iterates $entries can see
-    # them any more. Not recorded in $paths: create-path callers record $paths in
+    # 2026-08-27, and the survivor was then renamed from 'Transcribe in PDF' to
+    # 'Heresay - Transcribe in PDF' so it stops reading as a duplicate of the shell
+    # verb, which carries the old label and shows in the same classic menu. Every one
+    # of those .lnk files would otherwise sit in the Send To menu forever, because
+    # nothing that iterates $entries can see them any more. Not recorded in $paths:
+    # create-path callers record $paths in
     # install-manifest.json as files they created, which these are not.
     foreach ($legacy in $legacyNames) {
         $lnk = Join-Path $sendTo ($legacy + '.lnk')

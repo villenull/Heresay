@@ -887,7 +887,7 @@ $script:UsageText = @(
     "    right-click it and choose 'Transcribe in PDF'"
     "    (you may need 'Show more options' first),  or"
     ''
-    "    right-click it, then 'Send to' > 'Transcribe in PDF'."
+    "    right-click it, then 'Send to' > 'Heresay - Transcribe in PDF'."
     ''
     'The transcript PDF lands next to the recording when it finishes.'
 ) -join "`r`n"

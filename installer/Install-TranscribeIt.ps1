@@ -850,12 +850,12 @@ Write-TiOk 'uninstaller staged in the install root'
 #      hook Explorer; five labelled probe verbs never showed).
 #   2. Half right: Windows 11's MODERN menu does suppress it, but the verb renders
 #      fine in the CLASSIC menu ("Show more options" / Shift+F10) - which is what
-#      the user actually uses. It burned him: his 60-minute screen recording took
+#      the user actually uses. It burned them: a 60-minute screen recording took
 #      34 minutes (the Send To fast path does it in ~3.5), diarized system audio
 #      into 31 "speakers", and flashed a console for the ~2-3 s pwsh startup tax.
 #      RETIRED that morning (commit b28fc9f): this stage swept the keys and the
 #      smoke test failed on the verb's PRESENCE.
-#   3. REINSTATED the same evening at the user's explicit request - he wants the
+#   3. REINSTATED the same evening at the user's explicit request - they want the
 #      top-level entry and uses the classic menu - with all three defects fixed:
 #      label 'Transcribe in PDF', the FAST profile (-Model ggml-tiny.en-q8_0.bin
 #      -NoDiarization), and silent launch via wscript.exe -> Run-Hidden.vbs ->
@@ -1089,7 +1089,7 @@ if (-not $SkipShellRegistration -or -not $SkipSendTo) {
         Write-Host '  Right-click any audio or video file (classic menu / "Show more options"): "Transcribe in PDF".'
     }
     if (-not $SkipSendTo) {
-        Write-Host '  Also available under Send to -> "Transcribe in PDF".'
+        Write-Host '  Also available under Send to -> "Heresay - Transcribe in PDF".'
     }
     Write-Host ''
 }
