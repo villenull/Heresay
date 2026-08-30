@@ -12,8 +12,8 @@ Regenerate (any Chromium-based browser; the flags are the same for Edge):
 
 ```
 chrome --headless --disable-gpu --hide-scrollbars \
-       --force-device-scale-factor=2 --window-size=700,486 \
+       --force-device-scale-factor=2 --window-size=332,402 \
        --screenshot=right-click-menu.png right-click-menu.html
 ```
 
-That yields the 1400x972 image the README embeds at width 640.
+That yields the 664x804 image the README embeds at width 360.

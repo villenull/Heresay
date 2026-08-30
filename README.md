@@ -21,8 +21,8 @@ bottom-right with a live time estimate; when it closes, the PDF is sitting next 
 your recording.
 
 <p align="center">
-  <img src="docs/images/right-click-menu.png" width="640"
-       alt="Windows context menu showing the Transcribe in PDF entry, and the Send to submenu">
+  <img src="docs/images/right-click-menu.png" width="360"
+       alt="Windows context menu with Transcribe in PDF highlighted">
 </p>
 
 ## Highlights
