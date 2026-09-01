@@ -30,16 +30,6 @@ time estimate; when it closes, the PDF is sitting next to your recording.
 - **Private by construction.** Speech recognition, speaker separation, and PDF
   rendering all run on your own machine. The generated HTML even ships a
   `default-src 'none'` Content-Security-Policy, so a render *cannot* touch the network.
-- **Speaker separation, when you want it.** The menu entry favours speed and skips it,
-  so the transcript above renders label-free — timestamps and text only. Switch to the
-  full pipeline and it diarises up to several speakers and colour-codes them, marking
-  turns it is unsure of with a dagger:
-
-<p align="center">
-  <img src="docs/images/transcript-speakers.png" width="720"
-       alt="Transcript PDF from the Quality profile: three colour-coded speakers, a dagger on an uncertain turn">
-</p>
-
 - **A real installer.** Double-click **Install Heresay** in the release zip and a
   setup wizard walks you through it — download progress bars included. Per-user
   install, no administrator rights, clean uninstall. If PowerShell 7 is missing, the
@@ -102,7 +92,7 @@ is the right trade for meeting notes.
 
 | Profile | Model | Speakers | Speed (CPU) | Word error |
 |---|---|---|---|---|
-| Fastest — what both menu entries run | `tiny.en` q8 | no | ~14× real time | ~3.4 % |
+| Fastest — what the menu entry runs | `tiny.en` q8 | no | ~14× real time | ~3.4 % |
 | Balanced | `base.en` q8 | optional | ~9× | ~2.5 % |
 | Quality — the `config.json` default | `large-v3-turbo` q4 | yes | ~1.5–2× | ~1.6 % |
 
