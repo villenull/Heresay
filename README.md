@@ -15,10 +15,8 @@ no admin rights.
 ## How it looks in use
 
 Right-click any audio or video file and pick **Transcribe in PDF** — on Windows 11 it
-sits under *Show more options*. *Send to* carries the same command as **Heresay -
-Transcribe in PDF**, which shows in the modern menu too. A small progress window appears
-bottom-right with a live time estimate; when it closes, the PDF is sitting next to
-your recording.
+sits under *Show more options*. A small progress window appears bottom-right with a live
+time estimate; when it closes, the PDF is sitting next to your recording.
 
 <p align="center">
   <img src="docs/images/right-click-menu.png" width="360"
@@ -98,10 +96,9 @@ Design notes worth knowing before you dig in:
 
 ## Speed and accuracy profiles
 
-Both menu entries — the right-click verb and the *Send to* shortcut — pin the fastest
-profile on the command line: English-only `tiny` model, no speaker separation, ~14×
-real time, roughly one imperfect word in thirty. That is the right trade for meeting
-notes.
+The right-click entry pins the fastest profile on the command line: English-only `tiny`
+model, no speaker separation, ~14× real time, roughly one imperfect word in thirty. That
+is the right trade for meeting notes.
 
 | Profile | Model | Speakers | Speed (CPU) | Word error |
 |---|---|---|---|---|

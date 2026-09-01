@@ -838,18 +838,24 @@ function New-TiSendToShortcuts {
     # Neither base.en nor tiny.en fabricates. Every word the silence gate flagged was
     # real, in-reference speech, verified against test\media\ground-truth.json. The
     # "small models hallucinate" premise was superseded - see docs\benchmark-v2.md 4.
-    $entries = @(
-        @{ Name   = 'Heresay - Transcribe in PDF'
-           Script = 'app\SendTo-Heresay.ps1'
-           Extra  = ' -Model "ggml-tiny.en-q8_0.bin" -NoDiarization'
-           Desc   = 'Fastest transcription: tiny English model, no speaker separation. The PDF lands next to the file.' }
-    )
+    # No Send To entry as of 2026-08-28, on the maintainer's decision: the tool now
+    # offers a SINGLE menu entry, the top-level right-click verb 'Transcribe in PDF'
+    # (registered by Register-ShellVerbs.ps1). The Send To copy - which had been the
+    # reliable fallback for machines whose endpoint security hides the modern-menu
+    # verb - was a deliberate duplicate; the maintainer confirmed the verb renders on
+    # the target machines and preferred one entry over two. This function is kept, not
+    # deleted: it still SWEEPS the retired Send To names below so none linger on
+    # machines that had an earlier version, -SkipSendTo still works, and restoring the
+    # fallback is just adding an entry back here.
+    $entries = @()
 
-    # Names this function USED to install. Renamed or retired entries must be swept
-    # by their old names, or they survive every future install AND uninstall as dead
-    # menu items: both the create path and -Remove iterate the CURRENT $entries,
-    # which no longer knows these seven.
+    # Names this function USED to install. Retired entries must be swept by their old
+    # names, or they survive every future install AND uninstall as dead menu items:
+    # both the create path and -Remove iterate the CURRENT $entries, which is now
+    # empty. 'Heresay - Transcribe in PDF' joins the list because it too is now retired
+    # - existing installs carry it and must have it removed on the next run.
     $legacyNames = @(
+        'Heresay - Transcribe in PDF'
         'Transcribe in PDF'
         'Heresay - Generate transcript (PDF)'
         'Heresay - Fast transcript (lower accuracy)'

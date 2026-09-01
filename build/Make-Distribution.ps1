@@ -250,7 +250,7 @@ $readmeLines = @(
     ''
     '  1. In File Explorer, right-click any recording (mp3, m4a, mp4, wav, ...).'
     '  2. Choose "Transcribe in PDF". On Windows 11 it may sit under'
-    '     "Show more options"; "Send to" has "Heresay - Transcribe in PDF".'
+    '     "Show more options".'
     '  3. A progress window opens. When it finishes, the PDF is saved next to'
     '     the recording.'
     ''

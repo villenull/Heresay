@@ -626,8 +626,8 @@ $script:StageMap = @(
     @{ Prefix = 'Installing app files';                      Head = 'Installing the app';                  Pct = 82.0 }
     @{ Prefix = 'Registering the Explorer right-click verb'; Head = 'Adding the right-click menu';         Pct = 86.0 }
     @{ Prefix = 'Shell registration skipped';                Head = 'Adding the right-click menu';         Pct = 86.0 }
-    @{ Prefix = 'Creating the Send To entries';              Head = 'Adding the Send to menu';             Pct = 90.0 }
-    @{ Prefix = 'Send To entries skipped';                   Head = 'Adding the Send to menu';             Pct = 90.0 }
+    @{ Prefix = 'Creating the Send To entries';              Head = 'Finishing menu setup';                Pct = 90.0 }
+    @{ Prefix = 'Send To entries skipped';                   Head = 'Finishing menu setup';                Pct = 90.0 }
     @{ Prefix = 'Writing install-manifest.json';             Head = 'Recording what was installed';        Pct = 93.0 }
     @{ Prefix = 'Post-install smoke test';                   Head = 'Checking everything works';           Pct = 95.0 }
     @{ Prefix = 'Dry run - planned actions';                 Head = 'Dry run: listing planned actions';    Pct = 60.0 }
@@ -882,12 +882,10 @@ function Start-Installer {
 # --------------------------------------------------------------------- results --
 
 $script:UsageText = @(
-    'To transcribe a recording, find it in File Explorer, then either:'
+    'To transcribe a recording, find it in File Explorer, then:'
     ''
     "    right-click it and choose 'Transcribe in PDF'"
-    "    (you may need 'Show more options' first),  or"
-    ''
-    "    right-click it, then 'Send to' > 'Heresay - Transcribe in PDF'."
+    "    (you may need 'Show more options' first)."
     ''
     'The transcript PDF lands next to the recording when it finishes.'
 ) -join "`r`n"

@@ -1084,13 +1084,8 @@ Write-Host "  logs        $InstallRoot\logs"
 Write-Host "  manifest    $manifestPath"
 Write-Host "  uninstall   pwsh -File `"$InstallRoot\Uninstall-TranscribeIt.ps1`""
 Write-Host ''
-if (-not $SkipShellRegistration -or -not $SkipSendTo) {
-    if (-not $SkipShellRegistration) {
-        Write-Host '  Right-click any audio or video file (classic menu / "Show more options"): "Transcribe in PDF".'
-    }
-    if (-not $SkipSendTo) {
-        Write-Host '  Also available under Send to -> "Heresay - Transcribe in PDF".'
-    }
+if (-not $SkipShellRegistration) {
+    Write-Host '  Right-click any audio or video file (classic menu / "Show more options"): "Transcribe in PDF".'
     Write-Host ''
 }
 Write-TiLog "install finished; smoke failures=$($failed.Count)"
