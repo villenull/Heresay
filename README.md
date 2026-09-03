@@ -30,23 +30,27 @@ The output is a paginated PDF with timestamps and, at the two higher quality lev
 
 ### Record a conversation
 
-Open the Heresay home window (Start → search "Heresay") and click **Transcribe new conversation**. Heresay captures both your microphone and the audio playing through your speakers simultaneously, then transcribes the combined recording when you stop. Works with Zoom, Teams, and any other call.
+Right-click an empty part of your desktop — or the background of any open folder — and choose **Transcribe new conversation**.
+
+![The Transcribe new conversation entry in the desktop right-click menu](docs/images/right-click-desktop.png)
+
+Heresay captures both your microphone and the audio playing through your speakers simultaneously, then transcribes the combined recording when you stop. Works with Zoom, Teams, and any other call. The same entry is also on the **Transcribe new conversation** button in the home window.
 
 > If your default microphone is a Bluetooth headset, Heresay automatically uses a wired or built-in microphone instead — opening a Bluetooth hands-free mic forces the earbuds into mono phone quality, which degrades the whole recording. If no alternative exists, it falls back to the Bluetooth mic with a note in the log.
 
-### Transcribe a file from the home window
+### Choose a quality level
 
-The home window also has a **Transcribe a file…** button that opens a file picker. This is useful when you want to set a quality level before transcribing.
+Open the Heresay home window (Start → search "Heresay") to pick how carefully Heresay listens. The setting applies to every path — both right-click entries and the file button.
 
-### Quality settings
-
-The Heresay home window lets you choose a transcription quality. The setting applies to all paths — right-click, conversation recorder, and the file button.
+![The Heresay home window, showing the three transcription quality levels](docs/images/home-window.png)
 
 | Level | Speed | Speakers | Language |
 |---|---|---|---|
 | **Fastest** *(default)* | ~9× faster than real-time | No | English |
 | **Moderate** | ~4× faster | Yes — labeled by speaker | English |
 | **Slower, more capable** | ~1.5× faster | Yes — labeled by speaker | Auto-detects (English, Spanish, and more) |
+
+The window also has a **Transcribe a file…** button that opens a file picker, and an **Uninstall Heresay** link at the bottom.
 
 ---
 
