@@ -1,150 +1,118 @@
 # Heresay
 
-**Right-click a recording. Get a transcript PDF. Nothing leaves your machine.**
+**Audio and video to speaker-labeled transcripts on your PC.**
 
-Heresay turns any audio or video file — meeting recordings, voice memos, screen
-recordings, interviews — into a clean, timestamped transcript PDF, directly from the
-Windows right-click menu. Everything runs locally: no accounts, no cloud, no upload,
-no admin rights.
+Heresay turns meeting recordings into timestamped, speaker-labeled PDF transcripts. Everything runs on your own computer — no audio is ever uploaded anywhere.
 
-<p align="center">
-  <img src="docs/images/transcript-example.png" width="720"
-       alt="Transcript PDF from the default profile: timestamped turns, text only, no speaker labels">
-</p>
+---
 
-## How it looks in use
+## What it does
 
-Right-click any audio or video file and pick **Transcribe in PDF** — on Windows 11 it
-sits under *Show more options*. A small progress window appears bottom-right with a live
-time estimate; when it closes, the PDF is sitting next to your recording.
+- **Right-click any recording** → transcript PDF appears next to the file.
+- **Record a live meeting** → system audio and microphone captured together, then transcribed.
+- **Three quality levels** — from a fast English-only model to a slower multilingual one with speaker separation.
 
-<p align="center">
-  <img src="docs/images/right-click-menu.png" width="360"
-       alt="Windows context menu with Transcribe in PDF highlighted">
-</p>
+---
 
-## Highlights
+## Features
 
-- **Fast.** The default profile transcribes roughly **14× faster than real time** on a
-  mid-range laptop CPU — an hour-long recording takes a few minutes. No GPU required.
-- **Private by construction.** Speech recognition, speaker separation, and PDF
-  rendering all run on your own machine. The generated HTML even ships a
-  `default-src 'none'` Content-Security-Policy, so a render *cannot* touch the network.
-- **A real installer.** Double-click **Install Heresay** in the release zip and a
-  setup wizard walks you through it — download progress bars included. Per-user
-  install, no administrator rights, clean uninstall. If PowerShell 7 is missing, the
-  installer sets up a private copy automatically.
-- **Careful engineering under the hood.** Every downloaded component is pinned by
-  SHA-256 and verified before use; interrupted downloads resume; an install manifest
-  records every file, registry key, and menu entry so uninstall provably removes them.
+### Transcribe a file
 
-## Installing
+Right-click any audio or video file in File Explorer and choose **Transcribe in PDF**. A progress window opens and shows a live ETA. When it finishes, the transcript PDF is saved next to the source file.
 
-1. Download `Heresay-Setup.zip` from the [Releases](../../releases) page.
-2. Right-click it → **Extract All…** → open the extracted folder.
-3. Double-click **Install Heresay** and click *Install* in the window that opens.
+![The Transcribe in PDF entry in the Windows right-click menu](docs/images/right-click-menu.png)
 
-The first install downloads about **2.7 GB** of speech models and tools (once). An
-offline variant of the zip with everything bundled can be built from source — see
-*Building* below.
+Supported formats include MP3, M4A, MP4, WAV, OGG, FLAC, MKV, WEBM, and [many more](app/Register-ShellVerbs.ps1).
 
-**Requirements:** Windows 10/11 (64-bit) and Microsoft Edge (present on stock
-Windows; used purely as a local, offline PDF printer). PowerShell 7 is installed
-automatically if absent. No admin rights are needed at any point.
+The output is a paginated PDF with timestamps and, at the two higher quality levels, speaker labels:
 
-**Uninstalling:** run
-`pwsh -File "%LOCALAPPDATA%\Programs\TranscribeIt\Uninstall-TranscribeIt.ps1"`.
-The uninstaller removes everything the manifest recorded and verifies the removal.
+![A page of a generated transcript, showing timestamps and speaker labels](docs/images/transcript-example.png)
 
-## How it works
+### Record a conversation
 
-| Stage | Component | Notes |
-|---|---|---|
-| Decode | [FFmpeg](https://ffmpeg.org) | any audio/video container → 16 kHz WAV |
-| Speech recognition | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) | OpenAI Whisper models, quantised, CPU |
-| Voice activity detection | [Silero VAD](https://github.com/snakers4/silero-vad) | suppresses hallucination over silence |
-| Speaker separation | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | pyannote segmentation + CAM++ embeddings; runs concurrently with recognition |
-| Turn assembly | `app/Merge-Diarization.ps1` | aligns words to speakers, shapes readable turns |
-| PDF rendering | headless Microsoft Edge | HTML template → `--print-to-pdf`, fully offline |
+Open the Heresay home window (Start → search "Heresay") and click **Transcribe new conversation**. Heresay captures both your microphone and the audio playing through your speakers simultaneously, then transcribes the combined recording when you stop. Works with Zoom, Teams, and any other call.
 
-The pipeline is orchestrated by PowerShell scripts — deliberately: on locked-down
-corporate machines, unsigned binaries get quarantined, while scripts can be read,
-reviewed, and allowed. The same constraint shaped the installer: the setup wizard is
-WPF hosted in PowerShell rather than a `setup.exe`.
+> If your default microphone is a Bluetooth headset, Heresay automatically uses a wired or built-in microphone instead — opening a Bluetooth hands-free mic forces the earbuds into mono phone quality, which degrades the whole recording. If no alternative exists, it falls back to the Bluetooth mic with a note in the log.
 
-Design notes worth knowing before you dig in:
+### Transcribe a file from the home window
 
-- **Contracts first.** `contracts/` pins the JSON schemas the stages exchange
-  (`turns.schema.json`, `progress.schema.json`) and the download manifest with pinned
-  URLs and SHA-256 hashes for every component and model.
-- **Measured, not guessed.** Configuration defaults (`app/config.default.json`) carry
-  their own benchmark evidence in `_comment` fields — thread counts, model choices,
-  and speed/accuracy trade-offs are documented where they're set.
-- **The engine survives failure.** If PDF rendering fails, the finished transcript is
-  preserved as JSON and the error message says where it is. Downloads resume.
-  Cancellation is honoured mid-stage.
+The home window also has a **Transcribe a file…** button that opens a file picker. This is useful when you want to set a quality level before transcribing.
 
-## Speed and accuracy profiles
+### Quality settings
 
-The right-click entry pins the fastest profile on the command line: English-only `tiny`
-model, no speaker separation, ~14× real time, roughly one imperfect word in thirty. That
-is the right trade for meeting notes.
+The Heresay home window lets you choose a transcription quality. The setting applies to all paths — right-click, conversation recorder, and the file button.
 
-| Profile | Model | Speakers | Speed (CPU) | Word error |
-|---|---|---|---|---|
-| Fastest — what the menu entry runs | `tiny.en` q8 | no | ~14× real time | ~3.4 % |
-| Balanced | `base.en` q8 | optional | ~9× | ~2.5 % |
-| Quality — the `config.json` default | `large-v3-turbo` q4 | yes | ~1.5–2× | ~1.6 % |
+| Level | Speed | Speakers | Language |
+|---|---|---|---|
+| **Fastest** *(default)* | ~9× faster than real-time | No | English |
+| **Moderate** | ~4× faster | Yes — labeled by speaker | English |
+| **Slower, more capable** | ~1.5× faster | Yes — labeled by speaker | Auto-detects (English, Spanish, and more) |
 
-(Measured end-to-end on a 12-core ultraportable; your numbers will vary.)
+---
 
-`config.json` in the install folder ships the Quality profile, and it governs any run
-that does not override it:
+## Install
 
-```powershell
-pwsh -File "$env:LOCALAPPDATA\Programs\TranscribeIt\app\Transcribe-Entry.ps1" recording.m4a
-```
+### New install
 
-Editing `config.json` alone will **not** change the menu entries: both pass `-Model` and
-`-NoDiarization`, which take precedence over the file. To change what the right-click
-entry runs, edit the command in `app/Register-ShellVerbs.ps1` and re-run it.
+1. Go to the [Releases page](https://github.com/villenull/Heresay/releases/latest) and download **`Install-Heresay.vbs`**.
+2. Double-click the file. A setup window opens after a few seconds while the package downloads.
+3. Click **Install**. The first install downloads approximately 2.7 GB of speech models — leave the window open until it finishes.
 
-## Building the distribution
+> **SmartScreen warning**: if Windows shows a "Windows protected your PC" message, click **More info**, then **Run anyway**. Heresay is open source and installs only for your user account — no administrator rights are needed.
 
-```powershell
-# Standard package (small zip; installer downloads components on first run)
-pwsh -File build\Make-Distribution.ps1
+### Upgrade from v0.1
 
-# Offline package (~2.7 GB zip, everything bundled, install needs no network)
-pwsh -File build\Make-Distribution.ps1 -IncludeDownloadCache
-```
+Run the new installer the same way. It detects the previous install and upgrades in place. Your right-click menus and Start Menu entry are updated automatically. Your recordings and transcripts in Downloads are not touched.
 
-The build stamps the output with the git commit it came from, and the installer
-verifies every bundled file against the pinned hashes before using it.
+### Manual install (advanced)
 
-## Repository layout
+The same Releases page also offers **`Heresay-Setup.zip`** for those who prefer to inspect the package before running. Extract the zip, open the `Heresay-Setup` folder, and double-click **Install Heresay**.
 
-```
-app/         the pipeline: engine, merger, renderer, progress UI, launch shim
-installer/   setup wizard (GUI), console installer, uninstaller, pwsh 7 bootstrap
-contracts/   frozen JSON schemas + the pinned download manifest
-build/       distribution packer
-Install Heresay.vbs / .cmd   the double-click entry points shipped in the zip
-```
+---
 
-## Acknowledgements
+## Uninstall
 
-Heresay stands on excellent open-source work, fetched at install time and verified
-against pinned hashes:
+Open the Heresay home window (Start → Heresay), scroll to the bottom, and click **Uninstall Heresay**. Confirm the prompt. A message appears when it's done.
 
-- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and the Whisper models — MIT
-- [FFmpeg](https://ffmpeg.org) (LGPL build) — LGPL-3.0-or-later
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) — Apache-2.0
-- [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) — MIT
-- [3D-Speaker CAM++ embeddings](https://github.com/modelscope/3D-Speaker) — Apache-2.0
-- [Silero VAD](https://github.com/snakers4/silero-vad) — MIT
+Alternatively: paste `%LOCALAPPDATA%\Programs\TranscribeIt` into the File Explorer address bar, right-click `Uninstall-TranscribeIt.ps1`, and choose **Run with PowerShell**.
+
+Your recordings and transcripts are never deleted by the uninstaller.
+
+---
+
+## Requirements
+
+| | |
+|---|---|
+| OS | Windows 10 or 11 (64-bit) |
+| Disk | ~6 GB free (models + app; the download cache is removed after install) |
+| Internet | Required for the initial model download only |
+| Admin rights | Not needed — installs per user |
+
+---
+
+## Privacy
+
+Heresay runs entirely on your computer.
+
+- Audio is processed locally by [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx).
+- No recordings, transcripts, or usage data are sent to any server.
+- No accounts, no telemetry, no cloud.
+
+---
+
+## How it works (briefly)
+
+1. Audio or video is decoded to a 16 kHz WAV by ffmpeg.
+2. Whisper transcribes it to word-level timestamps.
+3. (Moderate and Slower levels) sherpa-onnx diarizes the audio to assign each word to a speaker.
+4. A merger combines the transcript and diarization into a turn-by-turn structure.
+5. A PDF is rendered from that structure.
+
+For conversation recordings, system audio and microphone are recorded in parallel as two WAV files, mixed, and then fed into the same pipeline.
+
+---
 
 ## License
 
-[MIT](LICENSE). The components Heresay downloads at install time keep their own
-licences — see *Acknowledgements* above.
+MIT

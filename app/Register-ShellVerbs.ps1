@@ -487,16 +487,23 @@ if (-not (Test-Path -LiteralPath $shim)) {
 #   FALLBACK if the endpoint agent ever suppresses or blocks this verb: re-point the
 #   command at $pwsh directly ('"{0}" -NoProfile -NonInteractive -ExecutionPolicy
 #   Bypass -WindowStyle Hidden -File "{1}" ...') and accept the flash - or rely on
-#   the Send To entries, which remain installed and run the same fast profile.
+#   the Send To entries, which remain installed.
 #
-# The fast profile (-Model ggml-tiny.en-q8_0.bin -NoDiarization) matches the Send To
-# fast entry and is deliberate: this verb with engine defaults (large model + speaker
-# separation) took 34 minutes on a 60-minute recording that the fast profile did in
-# ~3.5. "%1" is quoted (Explorer substitutes the selected file's full path there),
-# and Run-Hidden.vbs re-quotes every argument individually, so paths with spaces
-# survive the hand-off - proven end to end via Send To on this machine.
+# The command carries NOTHING but the file. It used to pin the fast profile here
+# (-Model ggml-tiny.en-q8_0.bin -NoDiarization, because engine defaults - large model
+# plus speaker separation - took 34 minutes on a 60-minute recording that the fast
+# profile did in ~3.5), but the model and the speaker switch are now chosen by
+# Transcribe-Entry.ps1 from the quality level the home window saves to settings.json,
+# and a registry value cannot follow a setting that changes after installation. Its
+# default when nothing is saved is 'fastest', which is that same tiny.en profile, so a
+# fresh install behaves exactly as this verb always did. See the "quality resolution"
+# section of Transcribe-Entry.ps1 for the level-to-model table.
+#
+# "%1" is quoted (Explorer substitutes the selected file's full path there), and
+# Run-Hidden.vbs re-quotes every argument individually, so paths with spaces survive
+# the hand-off - proven end to end via Send To on this machine.
 $wscript = 'C:\Windows\System32\wscript.exe'
-$command = '"{0}" "{1}" "{2}" -Model "ggml-tiny.en-q8_0.bin" -NoDiarization -Path "%1"' -f $wscript, $shim, $entry
+$command = '"{0}" "{1}" "{2}" -Path "%1"' -f $wscript, $shim, $entry
 $icon    = Resolve-IconValue -Explicit $IconPath -Root $InstallRoot -Pwsh $pwsh
 
 $result.Command   = $command

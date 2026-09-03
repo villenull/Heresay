@@ -1,0 +1,67 @@
+{
+  "$comment": "PLACEHOLDER, owned by Track C, used only for developing and testing the installer. The real manifest is contracts/download-manifest.json, produced by Track A; the installer prefers that file whenever it exists and only falls back to this one. Field names here are the canonical spelling, but Resolve-TiDownloadManifest in Install-Common.ps1 accepts common aliases (url/uri/resolvedUrl, sha256/hash/checksum, target/extractTo, and so on) so a cosmetic difference in Track A's output cannot break the install.",
+  "schemaVersion": 1,
+  "generatedUtc": "2026-08-26T00:00:00Z",
+  "totalBytes": 796917760,
+  "components": [
+    {
+      "name": "ffmpeg",
+      "url": "https://example.invalid/placeholder/ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip",
+      "filename": "ffmpeg-win64.zip",
+      "sizeBytes": 41943040,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "archiveType": "zip",
+      "stripComponents": 1,
+      "target": "bin/ffmpeg",
+      "smokeTest": { "exe": "bin/ffmpeg/bin/ffmpeg.exe", "args": ["-version"] }
+    },
+    {
+      "name": "whisper",
+      "url": "https://example.invalid/placeholder/whisper-bin-x64.zip",
+      "filename": "whisper-bin-x64.zip",
+      "sizeBytes": 27262976,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "archiveType": "zip",
+      "target": "bin/whisper",
+      "smokeTest": { "exe": "bin/whisper/whisper-cli.exe", "args": ["--help"] }
+    },
+    {
+      "name": "sherpa-onnx",
+      "url": "https://example.invalid/placeholder/sherpa-onnx-win-x64.tar.gz",
+      "filename": "sherpa-onnx-win-x64.tar.gz",
+      "sizeBytes": 33554432,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "archiveType": "tar.gz",
+      "stripComponents": 1,
+      "target": "bin/sherpa",
+      "smokeTest": { "exe": "bin/sherpa/sherpa-onnx-offline-speaker-diarization.exe", "args": ["--help"] }
+    },
+    {
+      "name": "model-whisper-medium-q5",
+      "url": "https://example.invalid/placeholder/ggml-medium.en-q5_0.gguf",
+      "filename": "ggml-medium.en-q5_0.gguf",
+      "sizeBytes": 539001856,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "archiveType": "none",
+      "target": "models"
+    },
+    {
+      "name": "model-diarization-segmentation",
+      "url": "https://example.invalid/placeholder/sherpa-onnx-pyannote-segmentation-3-0.onnx",
+      "filename": "sherpa-onnx-pyannote-segmentation-3-0.onnx",
+      "sizeBytes": 6291456,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "archiveType": "none",
+      "target": "models"
+    },
+    {
+      "name": "model-diarization-embedding",
+      "url": "https://example.invalid/placeholder/3dspeaker_speech_eres2net_base_sv_zh-cn.onnx",
+      "filename": "3dspeaker_speech_eres2net_base_sv_zh-cn.onnx",
+      "sizeBytes": 38797312,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "archiveType": "none",
+      "target": "models"
+    }
+  ]
+}

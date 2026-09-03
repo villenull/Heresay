@@ -52,19 +52,38 @@
 
 .PARAMETER Model
     Optional whisper model filename for THIS file, e.g. ggml-small.en-q8_0.bin.
-    Empty (the default) means "let the engine use config.json", which is the
-    default-accuracy path and is unchanged by this parameter existing.
+    An override and test hook: when -Model or -NoDiarization is given, the quality
+    setting is bypassed and the command line alone decides, exactly as before the
+    quality setting existed (a -Model with no -NoDiarization leaves speaker
+    separation to config.json; a -NoDiarization with no -Model leaves the model to
+    config.json). The Send To wrapper still uses these.
 
-    Deliberately stored on the QUEUE ITEM rather than held in the worker, because
-    the worker is whichever invocation happened to win the mutex - not necessarily
-    the invocation that chose the model. Send five files in fast mode and two in
-    default mode into the same coalesce window and the worker drains all seven;
-    only a per-item model gives each file the model it was actually sent with.
+    Whatever is resolved is stored on the QUEUE ITEM rather than held in the worker,
+    because the worker is whichever invocation happened to win the mutex - not
+    necessarily the invocation that chose the model. Send five files in fast mode
+    and two in default mode into the same coalesce window and the worker drains all
+    seven; only a per-item model gives each file the model it was actually sent with.
 
-    Declared LAST on purpose. $Path is explicitly Position 0 and the remaining
-    non-switch parameters take the positional slots after it in declaration order,
-    so appending here cannot move an existing slot. Every caller (the Send To
-    wrapper and Register-ShellVerbs) passes -Path by name anyway.
+    Declared after the switches on purpose. $Path is explicitly Position 0 and the
+    remaining non-switch parameters take the positional slots after it in
+    declaration order, so appending here cannot move an existing slot. Every caller
+    (the Send To wrapper, the recorder and Register-ShellVerbs) passes -Path by name
+    anyway.
+
+.PARAMETER Quality
+    Which of the three quality levels to transcribe at: fastest, moderate or
+    thorough. The default 'auto' reads the level the home window saved to
+    %LOCALAPPDATA%\TranscribeIt\settings.json, and when that file is missing or
+    holds something unrecognised the level is 'fastest'. The level is mapped to a
+    model and a speaker-separation switch by the table in the "quality resolution"
+    section below (overridable from config.json -> quality), and the result is what
+    goes on the queue item. This script is the ONLY place that mapping lives: the
+    right-click verb and the conversation recorder both hand their file here with
+    nothing but -Path, so a change to the saved setting reaches both paths at once.
+
+.PARAMETER SettingsPath
+    Where the home window's settings.json lives. Test hook; the default is the real
+    per-user file and nothing that ships passes it.
 #>
 [CmdletBinding()]
 param(
@@ -80,7 +99,10 @@ param(
     [switch] $NoProgressUi,
     [switch] $Wait,
     [string] $Model,
-    [switch] $NoDiarization
+    [switch] $NoDiarization,
+    [ValidateSet('fastest', 'moderate', 'thorough', 'auto')]
+    [string] $Quality = 'auto',
+    [string] $SettingsPath
 )
 
 Set-StrictMode -Version Latest
@@ -130,6 +152,27 @@ $cfg = [ordered]@{
                                     # window the right to outlive the session
 }
 
+# ======================================================= quality resolution ==
+# THE ONE mapping from the home window's quality level to what the engine is told.
+# Built-in so that it works on an upgraded install whose config.json predates the
+# 'quality' section (user edits to config.json survive upgrades, so a new section
+# never arrives there by itself); config.json -> quality.<level> may override either
+# field of a level. 'fastest' is exactly what both entry paths hard-coded before the
+# setting existed, which is why it is also the fallback when nothing was saved and
+# the model that stands in when a chosen level's model file is not installed.
+$QualityTable = [ordered]@{
+    fastest  = @{ model = 'ggml-tiny.en-q8_0.bin';        diarization = $false; language = ''     }
+    moderate = @{ model = 'ggml-base.en-q8_0.bin';        diarization = $true;  language = ''     }
+    thorough = @{ model = 'ggml-large-v3-turbo-q4_0.bin'; diarization = $true;  language = 'auto' }
+}
+$QualityFallbackLevel = 'fastest'
+if (-not $SettingsPath) { $SettingsPath = Join-Path $env:LOCALAPPDATA 'TranscribeIt\settings.json' }
+# Where model files live, used only to pre-flight the resolved model so a level whose
+# model is missing degrades to the fastest one instead of failing the item. Filled in
+# from config.json -> paths.modelDir below, with the installed and development layouts
+# as fallbacks; '' disables the check and leaves the missing file for the engine to report.
+$ModelDir = ''
+
 foreach ($d in @($LogDir, $QueueDir, $ClaimDir)) {
     if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 }
@@ -162,9 +205,36 @@ try {
                 if ($json.queue.PSObject.Properties.Name -contains $k) { $cfg[$k] = $json.queue.$k }
             }
         }
+        # Per-level overrides of the quality table. Only the three known levels are
+        # read (the home window can only save those), and a model must be a bare
+        # filename because the engine resolves it against paths.modelDir itself.
+        if ($json.PSObject.Properties.Name -contains 'quality') {
+            foreach ($level in @($QualityTable.Keys)) {
+                if ($json.quality.PSObject.Properties.Name -notcontains $level) { continue }
+                $o = $json.quality.$level
+                if ($o.PSObject.Properties.Name -contains 'model' -and $o.model) {
+                    $m = ([string]$o.model).Trim()
+                    if ($m -match '[\\/]' -or $m -match '\.\.') {
+                        Write-EntryLog "config.json quality.$level.model '$m' is not a bare filename; keeping the built-in '$($QualityTable[$level]['model'])'." 'WARN'
+                    }
+                    else { $QualityTable[$level]['model'] = $m }
+                }
+                if ($o.PSObject.Properties.Name -contains 'diarization') { $QualityTable[$level]['diarization'] = [bool]$o.diarization }
+            }
+        }
+        if ($json.PSObject.Properties.Name -contains 'paths' -and $json.paths.PSObject.Properties.Name -contains 'modelDir' -and $json.paths.modelDir) {
+            $md = ([string]$json.paths.modelDir) -replace '/', '\'
+            $ModelDir = if ([System.IO.Path]::IsPathRooted($md)) { $md } else { Join-Path $InstallRoot $md }
+        }
     }
 }
 catch { Write-EntryLog "config.json unreadable ($($_.Exception.Message)); using built-in queue defaults." 'WARN' }
+
+# The engine's Resolve-Vendor tries both tree layouts, so the pre-flight does the same.
+$ModelDir = @($ModelDir, (Join-Path $InstallRoot 'models'), (Join-Path $InstallRoot 'vendor\models')) |
+    Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
+    Select-Object -First 1
+if (-not $ModelDir) { $ModelDir = '' }
 
 if ($CoalesceMs -ge 0) { $cfg['coalesceMs'] = $CoalesceMs }
 if (-not $EngineScript)   { $EngineScript   = Join-Path $AppDir 'Transcribe.ps1' }
@@ -195,21 +265,122 @@ function Get-InstanceId {
 function Add-QueueItem {
     <# Atomic enqueue: write to a temp name, then Move (rename is atomic on NTFS) so a
        worker can never observe a half-written item. Name sorts by arrival. #>
-    param([string] $FilePath, [string] $ModelName = '', [bool] $SkipDiarization = $false)
+    param([string] $FilePath, [string] $ModelName = '', [bool] $SkipDiarization = $false, [string] $Language = '')
 
     $seq  = '{0:D19}-{1:D5}-{2}' -f (Get-Date).ToUniversalTime().Ticks, $PID, ([guid]::NewGuid().ToString('N').Substring(0, 8))
     $tmp  = Join-Path $QueueDir "$seq.tmp"
     $item = Join-Path $QueueDir "$seq.item"
     $payload = [ordered]@{
-        path        = $FilePath
-        enqueuedUtc = (Get-Date).ToUniversalTime().ToString('o')
-        enqueuedBy  = $PID
-        model       = $ModelName        # '' = engine default. Always written, so the shape is stable.
+        path          = $FilePath
+        enqueuedUtc   = (Get-Date).ToUniversalTime().ToString('o')
+        enqueuedBy    = $PID
+        model         = $ModelName        # '' = engine default. Always written, so the shape is stable.
         noDiarization = $SkipDiarization  # solo-recording mode. Always written, same reason.
+        language      = $Language         # '' = use config.json; 'auto' = multilingual (thorough level).
     } | ConvertTo-Json -Compress
     [System.IO.File]::WriteAllText($tmp, $payload, [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::Move($tmp, $item)
     return $item
+}
+
+function Resolve-TranscriptionProfile {
+    <# Decide the model and the speaker-separation switch for ONE enqueue. Pure: it
+       touches nothing but its inputs and returns everything the caller should log,
+       so a test can drive it without a queue, a mutex or a real settings file.
+
+       Precedence, highest first:
+         1. -Model / -NoDiarization on the command line. Either one present means
+            the command line alone decides both fields, byte-for-byte the pre-quality
+            behaviour, so the Send To wrapper and any test that passes them see no
+            change at all.
+         2. -Quality when it is not 'auto'.
+         3. The level saved in settings.json.
+         4. The fallback level ('fastest'), which is also what an unknown or
+            unreadable saved value degrades to - noisily, never fatally, because a
+            bad settings file must never cost an enqueue.
+       The level is then mapped through $Table. If that model is not installed the
+       fallback level's model stands in (speakers stay as the level said), because a
+       transcript at the wrong speed beats no transcript with a puzzling error. #>
+    param(
+        [string] $ExplicitModel,
+        [bool]   $ExplicitNoDiarization,
+        [string] $RequestedQuality,
+        [string] $SettingsFile,
+        [string] $ModelDirectory,
+        [System.Collections.IDictionary] $Table,
+        [string] $FallbackLevel = 'fastest'
+    )
+
+    $warnings = New-Object System.Collections.Generic.List[string]
+
+    if ($ExplicitModel -or $ExplicitNoDiarization) {
+        $given = @()
+        if ($ExplicitModel)         { $given += "-Model '$ExplicitModel'" }
+        if ($ExplicitNoDiarization) { $given += '-NoDiarization' }
+        return [pscustomobject]@{
+            Model = $ExplicitModel; NoDiarization = $ExplicitNoDiarization; Quality = ''; Language = ''; Source = 'command line'
+            Warnings = $warnings.ToArray()
+            Summary  = ("quality setting bypassed: {0} given on the command line -> model '{1}', speakers {2}" -f ($given -join ' and '),
+                $(if ($ExplicitModel) { $ExplicitModel } else { '(config default)' }),
+                $(if ($ExplicitNoDiarization) { 'off' } else { 'per config.json' }))
+        }
+    }
+
+    $level = ''; $source = ''
+    if ($RequestedQuality -and $RequestedQuality -ne 'auto') {
+        $level = $RequestedQuality.Trim().ToLowerInvariant(); $source = 'from -Quality'
+    }
+    elseif ($SettingsFile -and (Test-Path -LiteralPath $SettingsFile -PathType Leaf)) {
+        try {
+            $settings = Get-Content -LiteralPath $SettingsFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            $saved = ''
+            if ($settings -and $settings.PSObject.Properties.Name -contains 'quality') { $saved = ([string]$settings.quality).Trim().ToLowerInvariant() }
+            if (-not $saved) {
+                $warnings.Add("settings.json has no quality value; using '$FallbackLevel'.")
+                $level = $FallbackLevel; $source = 'default: settings.json has no quality'
+            }
+            elseif ($Table.Contains($saved)) { $level = $saved; $source = 'from settings.json' }
+            else {
+                $warnings.Add("settings.json holds unknown quality '$saved'; using '$FallbackLevel'.")
+                $level = $FallbackLevel; $source = "default: settings.json holds unknown '$saved'"
+            }
+        }
+        catch {
+            $warnings.Add("settings.json unreadable ($($_.Exception.Message)); using '$FallbackLevel'.")
+            $level = $FallbackLevel; $source = 'default: settings.json unreadable'
+        }
+    }
+    else { $level = $FallbackLevel; $source = 'default: no settings.json' }
+
+    # -Quality is ValidateSet'd, so only a table that lost a level could get here.
+    if (-not $Table.Contains($level)) {
+        $warnings.Add("quality '$level' is not in the quality table; using '$FallbackLevel'.")
+        $level = $FallbackLevel; $source = "default: '$level' not in table"
+    }
+
+    $model    = [string]$Table[$level]['model']
+    $noDiar   = -not [bool]$Table[$level]['diarization']
+    $language = if ($Table[$level].Contains('language')) { [string]$Table[$level]['language'] } else { '' }
+
+    if ($ModelDirectory -and (Test-Path -LiteralPath $ModelDirectory -PathType Container) -and
+        -not (Test-Path -LiteralPath (Join-Path $ModelDirectory $model) -PathType Leaf)) {
+        $standIn = [string]$Table[$FallbackLevel]['model']
+        if ($standIn -ne $model -and (Test-Path -LiteralPath (Join-Path $ModelDirectory $standIn) -PathType Leaf)) {
+            $warnings.Add("model '$model' for quality '$level' is not installed in '$ModelDirectory'; falling back to '$standIn' so the file is still transcribed.")
+            $model    = $standIn
+            # fallback drops the language override so the engine falls back to config.json
+            $language = ''
+        }
+        else {
+            $warnings.Add("model '$model' for quality '$level' is not installed in '$ModelDirectory' and neither is the fallback; the engine will report the missing file.")
+        }
+    }
+
+    return [pscustomobject]@{
+        Model = $model; NoDiarization = $noDiar; Quality = $level; Language = $language; Source = $source
+        Warnings = $warnings.ToArray()
+        Summary  = "quality '$level' ($source) -> model '$model', speakers $(if ($noDiar) { 'off' } else { 'on' })$(if ($language) { ", language=$language" })"
+    }
 }
 
 function Get-QueueItemFiles {
@@ -394,7 +565,8 @@ function Invoke-Engine {
         [int]    $CompletedItems,
         [string] $StdErrPath,
         [string] $ModelName = '',
-        [bool]   $SkipDiarization = $false
+        [bool]   $SkipDiarization = $false,
+        [string] $LanguageOverride = ''
     )
 
     $itemName = Split-Path -Leaf $MediaPath
@@ -444,6 +616,12 @@ function Invoke-Engine {
         Write-EntryLog "engine '$EngineScript' does not declare -NoDiarization; ignoring the request and leaving speaker separation on." 'WARN'
     }
 
+    # Language override. 'auto' = multilingual (thorough level); '' = use config.json.
+    if ($LanguageOverride -and ($declared -contains 'Language')) { $argList.Add('-Language'); $argList.Add($LanguageOverride) }
+    elseif ($LanguageOverride) {
+        Write-EntryLog "engine '$EngineScript' does not declare -Language; ignoring the override '$LanguageOverride' and using config.json." 'WARN'
+    }
+
     # Cancellation and config, again only if declared.
     if ($declared -contains 'CancelSignalFile') { $argList.Add('-CancelSignalFile'); $argList.Add($CancelFile) }
     $cfgFile = Join-Path $AppDir 'config.json'
@@ -464,8 +642,10 @@ function Invoke-Engine {
     $psi.RedirectStandardError  = $true
     foreach ($a in $argList) { $psi.ArgumentList.Add($a) }
 
-    Write-EntryLog ("engine start: item {0}/{1} '{2}' model={3}" -f $ItemIndex, $ItemTotal, $itemName,
-        $(if ($ModelName) { $ModelName } else { '(config default)' }))
+    Write-EntryLog ("engine start: item {0}/{1} '{2}' model={3} speakers={4}{5}" -f $ItemIndex, $ItemTotal, $itemName,
+        $(if ($ModelName) { $ModelName } else { '(config default)' }),
+        $(if ($SkipDiarization) { 'off' } else { 'per config.json' }),
+        $(if ($LanguageOverride) { " language=$LanguageOverride" } else { '' }))
     $proc = [System.Diagnostics.Process]::Start($psi)
 
     # Drain stderr concurrently. Reading stdout to completion first would deadlock
@@ -594,9 +774,20 @@ if ($requestedModel -match '[\\/]' -or $requestedModel -match '\.\.') {
     exit 2
 }
 
-$itemFile = Add-QueueItem -FilePath $resolved -ModelName $requestedModel -SkipDiarization ([bool]$NoDiarization)
-Write-EntryLog ("enqueued '{0}' as {1} (model={2})" -f $resolved, (Split-Path -Leaf $itemFile),
-    $(if ($requestedModel) { $requestedModel } else { '(config default)' }))
+# Resolve the model and speaker switch NOW, at enqueue time, and store the result on
+# the item: the worker that eventually drains it may be a different invocation with a
+# different command line, and the user changing the setting mid-batch must not
+# retroactively change files already queued.
+$decision = Resolve-TranscriptionProfile -ExplicitModel $requestedModel -ExplicitNoDiarization ([bool]$NoDiarization) `
+    -RequestedQuality $Quality -SettingsFile $SettingsPath -ModelDirectory $ModelDir -Table $QualityTable -FallbackLevel $QualityFallbackLevel
+foreach ($w in $decision.Warnings) { Write-EntryLog $w 'WARN' }
+Write-EntryLog $decision.Summary
+
+$itemFile = Add-QueueItem -FilePath $resolved -ModelName ([string]$decision.Model) -SkipDiarization ([bool]$decision.NoDiarization) -Language ([string]$decision.Language)
+Write-EntryLog ("enqueued '{0}' as {1} (model={2}, speakers={3}{4})" -f $resolved, (Split-Path -Leaf $itemFile),
+    $(if ($decision.Model) { $decision.Model } else { '(config default)' }),
+    $(if ($decision.NoDiarization) { 'off' } else { 'on' }),
+    $(if ($decision.Language) { ", language=$($decision.Language)" } else { '' }))
 
 if ($NoWorker) { Write-EntryLog 'NoWorker set; exiting after enqueue.'; exit 0 }
 
@@ -770,11 +961,13 @@ try {
 
         # One item blowing up must cost that item only, never the rest of the batch.
         try {
-            $claimModel = ''
+            $claimModel  = ''
             $claimNoDiar = $false
+            $claimLang   = ''
             if ($claim.PSObject.Properties.Name -contains 'Model' -and $claim.Model) { $claimModel = [string]$claim.Model }
             if ($claim.PSObject.Properties.Name -contains 'NoDiarization' -and $claim.NoDiarization) { $claimNoDiar = [bool]$claim.NoDiarization }
-            $r = Invoke-Engine -MediaPath $claim.Path -ItemIndex $itemIndex -ItemTotal $itemTotal -CompletedItems $completed -StdErrPath $stdErrPath -ModelName $claimModel -SkipDiarization $claimNoDiar
+            if ($claim.PSObject.Properties.Name -contains 'Language' -and $claim.Language) { $claimLang = [string]$claim.Language }
+            $r = Invoke-Engine -MediaPath $claim.Path -ItemIndex $itemIndex -ItemTotal $itemTotal -CompletedItems $completed -StdErrPath $stdErrPath -ModelName $claimModel -SkipDiarization $claimNoDiar -LanguageOverride $claimLang
         }
         catch {
             Write-EntryLog "item $itemIndex/$itemTotal '$itemName' failed to launch: $($_.Exception.Message)" 'ERROR'

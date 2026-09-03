@@ -75,9 +75,10 @@ echo.
 echo  ===================================================================
 echo    Heresay is installed.
 echo.
-echo    To transcribe a recording, find it in File Explorer, then
-echo    right-click it and choose "Transcribe in PDF"
-echo    (you may need "Show more options" first).
+echo    To transcribe a recording, find it in File Explorer, then:
+echo      - right-click it and choose "Transcribe in PDF"
+echo        (you may need "Show more options" first),  or
+echo      - right-click it, then "Send to" -^> "Transcribe in PDF".
 echo  ===================================================================
 echo.
 pause

@@ -25,7 +25,7 @@
   whisper and sherpa consume only the WAV and neither reads the other's output,
   so the diarizer is launched as soon as the WAV exists and collected after
   transcription. That takes its whole wall clock off the critical path - 8 s on a
-  short clip, 31-61 s on a long one.
+  short clip, 31-61 s on a long one. See docs/pipeline-optimisation.md.
 
   Per-stage wall clock is written to the LOG as "STAGE <name> = <seconds>" and
   summarised as one "STAGES {...}" line per item. It never goes to stdout.
@@ -109,7 +109,7 @@ function Get-Utc { (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 
 # --------------------------------------------------------- stage timing ------
 
-# Per-stage time attribution. The progress stream carries
+# Attribution for docs/pipeline-optimisation.md. The progress stream carries
 # whole-second UTC timestamps, which cannot resolve a 3 s stage, so stage cost is
 # measured here instead and written to the LOG - stdout is the progress contract
 # and may not carry diagnostics. Independent named stopwatches rather than a
@@ -1314,10 +1314,10 @@ function Invoke-Render {
     # This used to fire on the mere presence of the string 'Edge' anywhere in the
     # output - and since the renderer's own failure text always contains 'Edge',
     # EVERY render failure was reported to the user as a suspected enterprise
-    # block. On 2026-08-27 that sent a launcher-exit race to the user as
-    # "Company policy may be blocking it", which is the one wrong answer that
-    # costs somebody a day with IT. The renderer's real policy signal is its
-    # own Fail 5 wording.
+    # block. On 2026-08-27 that sent a launcher-exit race (see
+    # docs/render-edge-launcher-exit.md) to the user as "Company policy may be
+    # blocking it", which is the one wrong answer that costs somebody a day with
+    # IT. The renderer's real policy signal is its own Fail 5 wording.
     $why = if ($combined -match 'refused to print|disabled by policy|Printing is disabled|not allowed') {
       'Microsoft Edge refused to print because of an enterprise policy on this computer, which the PDF step needs. Please send the log file to IT.'
     } elseif ($combined -match 'did not produce a usable PDF|no PDF produced') {
@@ -1473,6 +1473,26 @@ for ($i = 0; $i -lt $total; $i++) {
     $warn = @()
     if ($null -ne $turns.PSObject.Properties['warnings'] -and $null -ne $turns.warnings) { $warn = @($turns.warnings) }
     $spkCount = @($turns.speakers).Count
+
+    # A transcript with no turns is not a transcript, and rendering one anyway is
+    # the worst of the three possible outcomes. MEASURED on a real 9.8 s recording
+    # made with the microphone muted: the captured WAV was 3.7 MB of digital
+    # silence (ffmpeg volumedetect reported max_volume -91.0 dB, i.e. all-zero
+    # samples), whisper VAD returned an empty transcription array, and the merge
+    # correctly produced zero turns. Left alone the engine then rendered a blank
+    # PDF and logged "1 ok" - and the merger DOES add a "No speech was detected"
+    # warning, but warnings are deliberately not shown in the progress window, so
+    # the user would see a green finish and an empty document with no explanation.
+    # Stop here and say what happened in the one channel they actually read.
+    if (@($turns.turns).Count -eq 0) {
+      Write-Log 'merge produced zero turns: no speech was found in the audio.' 'WARN'
+      throw (New-Failure -Stage 'merge' -Kind 'noSpeech' `
+        -Message ('No speech was found in this recording, so there is nothing to ' +
+                  'transcribe. If Heresay recorded it, check that your microphone is ' +
+                  'not muted - on many laptops that is the F4 key - and that any ' +
+                  'system audio you wanted to capture was actually playing.') `
+        -Detail 'the merge completed and returned 0 turns')
+    }
 
     $destDir = if ($OutputDirectory) { $OutputDirectory } else { [System.IO.Path]::GetDirectoryName($media) }
     $pdfPath = Join-Path $destDir ([System.IO.Path]::GetFileNameWithoutExtension($media) + $cfg.output.pdfSuffix)

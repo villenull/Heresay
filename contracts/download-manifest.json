@@ -5,11 +5,11 @@
   "consumedBy": "Track C (installer)",
   "targetPlatform": "windows-x64",
   "notes": [
-    "Every sizeBytes and sha256 was computed from the artifact actually downloaded and used to run the measured benchmark. Verify the hash after download and refuse to install on mismatch.",
+    "Every sizeBytes and sha256 was computed from the artifact actually downloaded and used to run the measured benchmark in docs/benchmark.md. Verify the hash after download and refuse to install on mismatch.",
     "All URLs resolve through Zscaler TLS inspection using the Windows certificate store. curl.exe and Invoke-WebRequest both work; pip/certifi-based tooling does not, which is why there is no Python anywhere in this stack.",
     "Everything is user-scope. No component requires admin rights, registry writes, or a Visual C++ redistributable.",
     "components[].required = false are optional alternates. A minimal working install needs only the required ones.",
-    "Extraction paths in extract[].to are relative to the install root and use forward slashes. They target the INSTALLED layout: bin/{whisper,sherpa,ffmpeg}/ for executables and models/ for weights.",
+    "Extraction paths in extract[].to are relative to the install root and use forward slashes. They target the INSTALLED layout: bin/{whisper,sherpa,ffmpeg,naudio}/ for executables and managed DLLs, and models/ for weights.",
     "Track A's development tree uses vendor/{whisper,sherpa,ffmpeg}/ and vendor/models/ instead. Transcribe.ps1 resolves either layout at runtime relative to its own location, so the installer does not need to rewrite app/config.default.json.",
     "NOT EVERY COMPONENT IS DOWNLOADED. The DEFAULT speech model is DERIVED at install time - see derivedComponents[] - because it is not published anywhere. Everything the installer puts on disk is still covered by a pinned SHA-256: downloaded components by their own hash, the derived one by the hashes of the two verified inputs it is produced from plus its own pinned output hash.",
     "DO NOT take a HuggingFace ETag as the content SHA-256. MEASURED 2026-08-27: a HEAD on huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin returns ETag 5a4b65b0...42ad, while the file's actual SHA-256 is 1fc70f77...bc69. The ETag is the CDN's entity tag on that pop, not the LFS oid, and there is no X-Linked-Etag on the response to fall back to. The authoritative value is lfs.oid from https://huggingface.co/api/models/<repo>/tree/main?recursive=true, which was cross-checked here against three files whose hashes came from real downloads (large-v3-turbo-q5_0, small-q5_1, small.en-q8_0) and agreed with all three.",
@@ -19,13 +19,14 @@
     "bin/whisper": "whisper-cli.exe, whisper-quantize.exe, plus whisper/ggml DLLs (all ggml-cpu-* variants). whisper-quantize.exe has to live in THIS directory, beside those DLLs: MEASURED, with them absent it exits 53 having printed nothing at all, which is indistinguishable from success if you only check for output.",
     "bin/sherpa": "sherpa-onnx-offline-speaker-diarization.exe plus onnxruntime DLLs.",
     "bin/ffmpeg": "ffmpeg.exe, ffprobe.exe, LICENSE.txt.",
+    "bin/naudio": "NAudio.Core.dll, NAudio.Wasapi.dll - managed assemblies, not executables, loaded by app/Record-Conversation.ps1 via Add-Type. The installer does not pre-create this directory in its $layout list; the extract[] mapping creates it, which is why it is absent from that list and present here.",
     "models": "ggml-*.bin speech models and ggml-silero-*.bin VAD model.",
     "models/diarization": "Segmentation and speaker-embedding ONNX models."
   },
   "totalRequiredBytes": 2691685950,
   "totalAllBytes": 2858803478,
   "totalInstalledBytes": 1823300281,
-  "_sizeNote": "totalAllBytes is DOWNLOAD volume and is now much larger than totalInstalledBytes. That is new and it is the point: 1624555275 of the download is the f16 source for the derived default model, and it never survives the install. Net of it, downloads are 1234248203. totalInstalledBytes was MEASURED on a clean install into an empty root on 2026-08-27 - bin/ 308157289 + app/ 354237 + models/ 1514788755, i.e. including the derived q4_0 model and excluding the f16 - and does not count logs/ or the staged uninstaller. Peak transient disk during that install is about 5.9 GB: the download cache plus the install tree while the f16 is briefly present.",
+  "_sizeNote": "totalAllBytes is DOWNLOAD volume and is now much larger than totalInstalledBytes. That is new and it is the point: 1624555275 of the download is the f16 source for the derived default model, and it never survives the install. Net of it, downloads are 1234248203. totalInstalledBytes was MEASURED on a clean install into an empty root on 2026-08-27 - bin/ 308157289 + app/ 354237 + models/ 1514788755, i.e. including the derived q4_0 model and excluding the f16 - and does not count logs/ or the staged uninstaller. Peak transient disk during that install is about 5.9 GB: the download cache plus the install tree while the f16 is briefly present. THE THREE TOTALS ABOVE ARE STALE AND WERE DELIBERATELY NOT PATCHED. Recomputed 2026-09-01 from the pinned sizeBytes, the real sums are totalRequiredBytes 2817434183 and totalAllBytes 2984551711, i.e. both are understated by 125748233. Only 415627 of that is the two naudio components added on 2026-09-01 (138411 + 277216); the other 125332606 is base.en-q8_0 plus tiny.en-q8_0, which were added earlier without updating these fields. They are left as they are because totalInstalledBytes cannot honestly be patched by arithmetic - it says MEASURED on a clean install, and whether that measurement already included those two models is not recoverable from this file, so bumping it by the 367104 bytes of naudio DLLs would turn a measurement into a guess. Recompute all three on the next clean install rather than trusting them. Nothing in the installer reads these fields - it sums components[].sizeBytes itself.",
   "archiveTools": {
     "zip": "Expand-Archive, or tar.exe -xf",
     "tar.bz2": "tar.exe -xjf  (bsdtar ships with Windows 10/11, no extra tooling needed)",
@@ -149,6 +150,52 @@
       ]
     },
     {
+      "name": "naudio-core",
+      "version": "2.2.1",
+      "purpose": "Base audio types the WASAPI capture assembly is built on: WaveFormat, IWaveProvider and WaveFileWriter, which is what actually writes the recorded WAV to disk. It is a separate component because NuGet packages do not bundle their dependencies and NAudio.Wasapi declares this one as hard - NAudio.Wasapi.nuspec, netstandard2.0 group, NAudio.Core 2.2.1 - so NAudio.Wasapi.dll on its own leaves those types unresolvable. Consumed by app/Record-Conversation.ps1 through Add-Type against bin/naudio/.",
+      "required": true,
+      "sourceRepo": "https://github.com/naudio/NAudio",
+      "url": "https://www.nuget.org/api/v2/package/NAudio.Core/2.2.1",
+      "filename": "naudio.core.2.2.1.nupkg",
+      "sizeBytes": 138411,
+      "sha256": "794645dbfd30e4880663d52d9d9224d55c301fa54228ff623c95d572c7887347",
+      "archiveType": "zip",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/naudio/NAudio/blob/main/LICENSE",
+      "licenseVerifiedFrom": "NAudio.Core.nuspec INSIDE the downloaded package: <license type=\"expression\">MIT</license>, licenseUrl https://licenses.nuget.org/MIT, copyright (c) Mark Heath 2023. Cross-checked two further ways: the NuGet catalog entry for this exact version gives licenseExpression = MIT, and https://api.github.com/repos/naudio/NAudio -> license.spdx_id = MIT. The package carries the SPDX EXPRESSION only and no licence text file, so unlike the ffmpeg entry above there is nothing in the archive to deploy beside the DLL; the MIT text lives at the licenseUrl (confirmed present via the GitHub licence API, path LICENSE on main).",
+      "sha256VerifiedFrom": "MEASURED 2026-09-01 on this device with Get-FileHash -Algorithm SHA256 over the file actually downloaded from the url above (138411 bytes). NuGet publishes NO SHA-256 for a package, so there is no independent SHA-256 to compare against and this value is stated as locally computed rather than corroborated. Two real cross-checks were done instead. (1) SECOND INDEPENDENT FETCH: the same package pulled by the other documented route - https://api.nuget.org/v3-flatcontainer/naudio.core/2.2.1/naudio.core.2.2.1.nupkg, the CDN origin rather than the www.nuget.org v2 redirect - came down byte-identical, same 138411 bytes and same SHA-256. (2) DIFFERENT-ALGORITHM CHECK against upstream: the catalog entry behind https://api.nuget.org/v3/registration5-gz-semver2/naudio.core/2.2.1.json publishes packageHash with packageHashAlgorithm = SHA512, which is NOT SHA-256 and therefore cannot confirm the value pinned here directly. It was compared correctly rather than conflated: the local file was hashed with SHA-512 and base64-encoded, giving mI1gc6likH9pDzLEsKolvj9X+2rMunEw8s5tdOUN7tSRJAoXI3Fd6Ise6xrWsHvW1EQaWPItb5AyYk6S3ljrew==, which matches the published packageHash exactly, and packageSize matches 138411. So upstream independently confirms WHICH FILE this is; the SHA-256 above is this project's own digest of that confirmed file. NOTE an HTTP ETag is NOT the file hash - that error was made earlier on this project. The .signature.p7s author/repository signature inside the package was NOT validated here.",
+      "extract": [
+        {
+          "from": "lib/netstandard2.0/NAudio.Core.dll",
+          "to": "bin/naudio/NAudio.Core.dll",
+          "note": "A .nupkg is a plain ZIP, so this is the ordinary single-member from/to mapping. 187904 bytes. Only the DLL is deployed: the package also holds NAudio.Core.xml (332724 bytes of IntelliSense docs), an icon and the NuGet plumbing, none of which the recorder reads."
+        }
+      ]
+    },
+    {
+      "name": "naudio-wasapi",
+      "version": "2.2.1",
+      "purpose": "Windows WASAPI loopback capture - recording system audio, i.e. what the user actually hears, alongside the microphone. It is here because it is the only approach available on these machines: the hardware exposes no Stereo Mix device, and a virtual audio cable needs an admin driver install, while WASAPI loopback needs neither a driver nor admin rights. MEASURED on the reference device: loopback captured 2.4 MB in 5 s at -35 dB peak, and the microphone was auto-detected through the default communications capture endpoint. Consumed by app/Record-Conversation.ps1 through Add-Type against bin/naudio/.",
+      "required": true,
+      "sourceRepo": "https://github.com/naudio/NAudio",
+      "url": "https://www.nuget.org/api/v2/package/NAudio.Wasapi/2.2.1",
+      "filename": "naudio.wasapi.2.2.1.nupkg",
+      "sizeBytes": 277216,
+      "sha256": "c8396b8dbab86a2619edfd9158beaf18c21cb86677099b5594950fd8651b9d1a",
+      "archiveType": "zip",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/naudio/NAudio/blob/main/LICENSE",
+      "licenseVerifiedFrom": "NAudio.Wasapi.nuspec INSIDE the downloaded package: <license type=\"expression\">MIT</license>, licenseUrl https://licenses.nuget.org/MIT, copyright (c) Mark Heath 2023. Cross-checked two further ways: the NuGet catalog entry for this exact version gives licenseExpression = MIT, and https://api.github.com/repos/naudio/NAudio -> license.spdx_id = MIT. Same package family and same licence position as naudio-core above, so this adds no new trust boundary. The package carries the SPDX expression only and no licence text file; the MIT text lives at the licenseUrl.",
+      "sha256VerifiedFrom": "MEASURED 2026-09-01 on this device with Get-FileHash -Algorithm SHA256 over the file actually downloaded from the url above (277216 bytes). NuGet publishes NO SHA-256 for a package, so there is no independent SHA-256 to compare against and this value is stated as locally computed rather than corroborated. Two real cross-checks were done instead. (1) SECOND INDEPENDENT FETCH: https://api.nuget.org/v3-flatcontainer/naudio.wasapi/2.2.1/naudio.wasapi.2.2.1.nupkg, the CDN origin rather than the www.nuget.org v2 redirect, came down byte-identical - same 277216 bytes, same SHA-256. (2) DIFFERENT-ALGORITHM CHECK against upstream: the catalog entry behind https://api.nuget.org/v3/registration5-gz-semver2/naudio.wasapi/2.2.1.json publishes packageHash with packageHashAlgorithm = SHA512, which is NOT SHA-256 and cannot confirm the pinned value directly. Compared correctly rather than conflated: SHA-512 of the local file, base64-encoded, is AMvEdIEjdxknxt9rrzBkBSvoAYBBHUnMUHWF2B/q15k9h2q4wgPztluSBVoj3XIPrYys5OCNhND/14J7hyNqiQ==, matching the published packageHash exactly, with packageSize matching 277216. Upstream therefore confirms WHICH FILE this is; the SHA-256 above is this project's own digest of that confirmed file. NOTE an HTTP ETag is NOT the file hash - that error was made earlier on this project. The .signature.p7s inside the package was NOT validated here.",
+      "extract": [
+        {
+          "from": "lib/netstandard2.0/NAudio.Wasapi.dll",
+          "to": "bin/naudio/NAudio.Wasapi.dll",
+          "note": "The netstandard2.0 build, 179200 bytes - NOT the uap10.0.18362 one, which is a second NAudio.Wasapi.dll in the same package (179712 bytes) for UWP. The full path matters here rather than being cosmetic: the installer's from/to lookup only falls back to a recursive search by leaf name when the literal path is absent AND exactly one candidate matches, and this package would give it two."
+        }
+      ]
+    },
+    {
       "name": "diarization-segmentation-pyannote-3.0",
       "version": "segmentation-3.0",
       "purpose": "Speaker segmentation: finds who is speaking when (voice activity + overlap), before embeddings are clustered.",
@@ -177,7 +224,7 @@
     {
       "name": "diarization-embedding-campplus-zh-en",
       "version": "3D-Speaker",
-      "purpose": "DEFAULT speaker embedding model (bilingual CAM++). Measured best on BOTH accuracy and speed: 100% attribution accuracy on the 3-speaker fixture in 103 s of diarization for 348 s of audio, versus 99.4% in 217 s for eres2netv2.",
+      "purpose": "DEFAULT speaker embedding model (bilingual CAM++). Measured best on BOTH accuracy and speed: 100% attribution accuracy on the 3-speaker fixture in 103 s of diarization for 348 s of audio, versus 99.4% in 217 s for eres2netv2. See docs/benchmark.md.",
       "required": true,
       "sourceRepo": "https://github.com/modelscope/3D-Speaker",
       "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
@@ -287,7 +334,7 @@
     {
       "name": "whisper-model-ggml-large-v3-turbo-q5_0",
       "version": "ggml",
-      "purpose": "PREVIOUS default speech model, now the manual recovery path. large-v3-turbo quantised to q5_0. The DEFAULT is the q4_0 model derived at install time (see derivedComponents[]), which measured 1.39x faster on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture. This one is retained deliberately, not by inertia: it is the only large-v3-turbo variant that is actually HOSTED, so if the derivation ever fails on some future machine, setting transcription.model back to this filename in config.json gives a working install with nothing outside this manifest. There is no automatic fallback - that is a config edit, not engine behaviour.",
+      "purpose": "PREVIOUS default speech model, now the manual recovery path. large-v3-turbo quantised to q5_0. The DEFAULT is the q4_0 model derived at install time (see derivedComponents[]), which measured 1.39x faster on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture - docs/benchmark-v2.md 5.0. This one is retained deliberately, not by inertia: it is the only large-v3-turbo variant that is actually HOSTED, so if the derivation ever fails on some future machine, setting transcription.model back to this filename in config.json gives a working install with nothing outside this manifest. There is no automatic fallback - that is a config edit, not engine behaviour.",
       "required": true,
       "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
@@ -333,7 +380,7 @@
     {
       "name": "whisper-model-ggml-small.en-q8_0",
       "version": "ggml",
-      "purpose": "FAST MODE speech model - backed the second Send To entry, 'Heresay - Fast transcript (lower accuracy)', until that entry was retired. English-only small, q8_0. MEASURED on the noisy fixture, transcribe-stage wall clock on an idle machine: 45.5 s against 105.0 s for the default q4_0, i.e. 2.31x faster at the stage and ~1.9x on the whole pipeline. Still downloaded so the profile stays selectable via transcription.model in config.json without a second install pass; no menu entry depends on it now.",
+      "purpose": "FAST MODE speech model - the model behind the second Send To entry, 'Heresay - Fast transcript (lower accuracy)'. English-only small, q8_0. MEASURED on the noisy fixture, transcribe-stage wall clock on an idle machine: 45.5 s against 105.0 s for the default q4_0, i.e. 2.31x faster at the stage and ~1.9x on the whole pipeline (docs/benchmark-v2.md 5.0). Required, not optional: the installer creates that Send To entry unconditionally, so an install missing this model does not degrade gracefully - it gives the user a menu entry that opens an error box.",
       "required": true,
       "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q8_0.bin",
@@ -355,7 +402,7 @@
     {
       "name": "whisper-model-ggml-base.en-q8_0",
       "version": "ggml",
-      "purpose": "BEST-TIMESTAMPS speech model, and the fallback for the fast path. Backed the Send To entry 'Heresay - Fastest transcript (no speakers)' until 2026-08-27, when tiny.en-q8_0 took that role; kept because it is the most accurately TIMED model measured in this project - per-utterance onset error median 0.19 s, p90 0.39 s, max 0.65 s, better even than large-v3-turbo-q4_0 (max 1.48 s), because its shorter segments keep boundaries tight. Select it with transcription.model in config.json when timing matters more than speed. MEASURED 2026-08-27 on mains, 347.86 s fixture, WHOLE PIPELINE end to end: 68.21 s without diarization = 5.10x realtime, against under 1.45x for the default q4_0 entry, at 2.48% word error rate (one wrong word in 40 - essentially small.en's 2.37%). This is the first model in this project measured end to end rather than by stage ratio. NOTE the reason originally recorded here for preferring it over tiny.en - that 'these transcripts carry timestamps that get quoted verbatim' - was FALSE and was never checked with the requirements owner, who confirmed on 2026-08-27 that approximate timestamps are acceptable for the intended use. The genuine timestamp difference is real but small in the median and shows up as a single outlier; see the tiny.en-q8_0 entry. Required, not optional: it remains a manifest component so the fallback is always present rather than needing a download at the moment someone needs it.",
+      "purpose": "BEST-TIMESTAMPS speech model, and the fallback for the fast path. Backed the Send To entry 'Heresay - Fastest transcript (no speakers)' until 2026-08-27, when tiny.en-q8_0 took that role; kept because it is the most accurately TIMED model measured in this project - per-utterance onset error median 0.19 s, p90 0.39 s, max 0.65 s, better even than large-v3-turbo-q4_0 (max 1.48 s), because its shorter segments keep boundaries tight. Select it with transcription.model in config.json when timing matters more than speed. MEASURED 2026-08-27 on mains, 347.86 s fixture, WHOLE PIPELINE end to end: 68.21 s without diarization = 5.10x realtime, against under 1.45x for the default q4_0 entry, at 2.48% word error rate (one wrong word in 40 - essentially small.en's 2.37%). This is the first model in this project measured end to end rather than by stage ratio. NOTE the reason originally recorded here for preferring it over tiny.en - that 'these transcripts carry timestamps that get quoted to clients' - was FALSE and was never checked with Diego, who confirmed on 2026-08-27 that the tool is internal-only and transcripts may be slightly off. The genuine timestamp difference is real but small in the median and shows up as a single outlier; see the tiny.en-q8_0 entry. Required, not optional: it remains a manifest component so the fallback is always present rather than needing a download at the moment someone needs it.",
       "required": true,
       "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q8_0.bin",
@@ -377,7 +424,7 @@
     {
       "name": "whisper-model-ggml-tiny.en-q8_0",
       "version": "ggml",
-      "purpose": "FASTEST MODE speech model - backs the 'Transcribe in PDF' menu entry, a role it took over from base.en-q8_0 on 2026-08-27 (then under the name 'Heresay - Fastest transcript (no speakers)'). MEASURED same day, quiet, power state recorded (ACLineStatus=1, BatteryStatus=2 i.e. on AC not charging), 347.86 s fixture, TRANSCRIBE STAGE, two reps each: tiny.en 22.9 and 18.5 s against base.en's 30.7 and 35.1 s - about 1.6x. Word error 3.38% against base.en's 2.48%, i.e. roughly one wrong word in 30 rather than one in 40. Fabricates nothing: zero fabricated segments over the fixture's deliberate 11.7 s silence, verified against test/media/ground-truth.json. TIMESTAMPS, which is the axis this model was previously REJECTED on: measured systematically for the first time by test/perf/Measure-TimestampAccuracy.ps1, per-utterance onset error against ground truth is median 0.76 s and p90 1.51 s across 28 matched utterances, with ONE outlier at 10.50 s early (utterance 13). The earlier rejection quoted that single outlier as though it were the model's behaviour; the distribution shows 27 of 28 utterances inside 1.5 s. Accepted because the requirements owner confirmed on 2026-08-27 that approximate timing is acceptable for the intended use, and asked for maximum speed. base.en-q8_0 is retained and remains the best-timestamped model measured here (median 0.19 s, max 0.65 s - better even than large-v3-turbo-q4_0's 1.48 s max), selectable via transcription.model in config.json. Required, not optional: the installer creates the 'Transcribe in PDF' entry unconditionally, so an install missing this model gives the user a menu entry that opens an error box.",
+      "purpose": "FASTEST MODE speech model - backs the Send To entry 'Heresay - Fastest transcript (no speakers)', taking that role over from base.en-q8_0 on 2026-08-27. MEASURED same day, quiet, power state recorded (ACLineStatus=1, BatteryStatus=2 i.e. on AC not charging), 347.86 s fixture, TRANSCRIBE STAGE, two reps each: tiny.en 22.9 and 18.5 s against base.en's 30.7 and 35.1 s - about 1.6x. Word error 3.38% against base.en's 2.48%, i.e. roughly one wrong word in 30 rather than one in 40. Fabricates nothing: zero fabricated segments over the fixture's deliberate 11.7 s silence, verified against test/media/ground-truth.json. TIMESTAMPS, which is the axis this model was previously REJECTED on: measured systematically for the first time by test/perf/Measure-TimestampAccuracy.ps1, per-utterance onset error against ground truth is median 0.76 s and p90 1.51 s across 28 matched utterances, with ONE outlier at 10.50 s early (utterance 13). The earlier rejection quoted that single outlier as though it were the model's behaviour; the distribution shows 27 of 28 utterances inside 1.5 s. Accepted because Diego confirmed on 2026-08-27 that transcripts are internal-only and never client-facing, so approximate timing is acceptable, and asked for maximum speed. base.en-q8_0 is retained and remains the best-timestamped model measured here (median 0.19 s, max 0.65 s - better even than large-v3-turbo-q4_0's 1.48 s max), selectable via transcription.model in config.json. Required, not optional: the installer creates that Send To entry unconditionally, so an install missing this model gives the user a menu entry that opens an error box.",
       "required": true,
       "sourceRepo": "https://huggingface.co/ggerganov/whisper.cpp",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en-q8_0.bin",
@@ -423,7 +470,7 @@
     {
       "name": "whisper-model-ggml-large-v3-turbo-q4_0",
       "version": "ggml",
-      "purpose": "DEFAULT speech model. large-v3-turbo quantised to q4_0. MEASURED 1.39x faster than the q5_0 it replaced on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture. The 0.34-point penalty q4_0 shows on clean audio disappears under noise, which is the case that matters.",
+      "purpose": "DEFAULT speech model. large-v3-turbo quantised to q4_0. MEASURED 1.39x faster than the q5_0 it replaced on the transcription stage for an IDENTICAL 1.58% word error rate on the noisy fixture - docs/benchmark-v2.md 5.0. The 0.34-point penalty q4_0 shows on clean audio disappears under noise, which is the case that matters.",
       "required": true,
       "whyDerived": "It does not exist upstream. There is NO q4_0 file anywhere in huggingface.co/ggerganov/whisper.cpp - confirmed 2026-08-27 against the repository tree API, zero matches for q4_0 - and every other hosted q4_0 variant that was tried returned 404. So the choice is between shipping a file that exists only because someone once ran an unvendored tool on one laptop, or deriving it here from published weights with a vendored tool. This is the second. It is the difference between an installer that works on one machine and an installer that works.",
       "derivedFrom": "whisper-model-ggml-large-v3-turbo-f16",

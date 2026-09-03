@@ -21,7 +21,8 @@ build/*.zip
 *.wma
 *.aac
 
-# Generated output: rendered PDFs, benchmark and accel harness results.
+# Generated output: rendered PDFs, benchmark and accel harness results. The distilled
+# findings live in docs/benchmark*.md and docs/acceleration-plan.md, which are tracked.
 *.pdf
 test/bench/out/
 test/bench/media/
@@ -35,3 +36,5 @@ test/perf/out/
 *.amr
 *.flv
 *.caf
+build/heresay-public/
+build/*.png

@@ -54,7 +54,7 @@
 param(
     [string] $OutputDir = (Join-Path $PSScriptRoot 'dist'),
     [switch] $IncludeDownloadCache,
-    [string] $DownloadCacheSource = $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads' } else { '' }),
+    [string] $DownloadCacheSource = (Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads'),
     [string] $ZipName,
     [switch] $NoZip
 )
@@ -97,7 +97,16 @@ Write-Step 'Verifying the source tree'
 $requiredAppFiles = @(
     'Transcribe-Entry.ps1', 'Register-ShellVerbs.ps1', 'Transcribe.ps1',
     'Merge-Diarization.ps1', 'Render-Pdf.ps1', 'template.html', 'Progress.ps1',
-    'config.default.json', 'SendTo-Heresay.ps1', 'Compress-ForWord.ps1', 'Run-Hidden.vbs'
+    'config.default.json', 'SendTo-Heresay.ps1', 'Compress-ForWord.ps1', 'Run-Hidden.vbs',
+    # Required in $appFiles too. Without it the package still downloads and verifies the
+    # two naudio components, so a recipient gets the capture library and nothing that
+    # loads it - a broken feature that installs cleanly. Fail the build instead.
+    'Record-Conversation.ps1',
+    'Register-RecordVerb.ps1',
+    # The home window the "Heresay" Start Menu shortcut opens. Register-RecordVerb.ps1
+    # creates that shortcut on every install, so a package without this file installs a
+    # Start entry that points at nothing.
+    'Heresay-Home.ps1'
 )
 
 $required = @(
@@ -106,14 +115,14 @@ $required = @(
     # folder of scripts a non-technical person cannot run, so their absence is fatal.
     'Install Heresay.vbs'
     'Install Heresay.cmd'
-    'installer/Install-Gui.ps1'
-    'installer/Bootstrap-Pwsh.ps1'
-    'installer/Install-TranscribeIt.ps1'
-    'installer/Install-Common.ps1'
-    'installer/Uninstall-TranscribeIt.ps1'
-    'installer/assets'
-    'contracts/download-manifest.json'
-) + @($requiredAppFiles | ForEach-Object { "app/$_" })
+    'installer\Install-Gui.ps1'
+    'installer\Bootstrap-Pwsh.ps1'
+    'installer\Install-TranscribeIt.ps1'
+    'installer\Install-Common.ps1'
+    'installer\Uninstall-TranscribeIt.ps1'
+    'installer\assets'
+    'contracts\download-manifest.json'
+) + @($requiredAppFiles | ForEach-Object { "app\$_" })
 
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_)) })
 if ($missing.Count) {
@@ -123,7 +132,7 @@ if ($missing.Count) {
 
 # The manifest gates the cache stage here and every download at install time, so it has
 # to parse before anything is copied.
-$manifestPath = Join-Path $repoRoot 'contracts/download-manifest.json'
+$manifestPath = Join-Path $repoRoot 'contracts\download-manifest.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 Write-Ok "$($required.Count) required item(s) present; download manifest parses"
 
@@ -151,9 +160,9 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'contracts') -Destination (Join-Path
 # ship, and a copy-then-delete would still ship it if the delete broke.
 $stageInstaller = (New-Item -ItemType Directory -Path (Join-Path $stageRoot 'installer') -Force).FullName
 foreach ($f in @('Install-Gui.ps1', 'Install-TranscribeIt.ps1', 'Install-Common.ps1', 'Uninstall-TranscribeIt.ps1', 'Bootstrap-Pwsh.ps1')) {
-    Copy-Item -LiteralPath (Join-Path $repoRoot "installer/$f") -Destination $stageInstaller
+    Copy-Item -LiteralPath (Join-Path $repoRoot "installer\$f") -Destination $stageInstaller
 }
-Copy-Item -LiteralPath (Join-Path $repoRoot 'installer/assets') -Destination (Join-Path $stageInstaller 'assets') -Recurse
+Copy-Item -LiteralPath (Join-Path $repoRoot 'installer\assets') -Destination (Join-Path $stageInstaller 'assets') -Recurse
 
 # vendor\, test\, docs\, .git and installer\tests were never copied in the first place.
 $pruned = 0
@@ -226,9 +235,9 @@ $readmeLines = @(
     ''
     'WHAT THIS IS'
     ''
-    '  Heresay turns an audio or video recording into a timestamped'
-    '  transcript PDF, fast. Everything runs on your own computer:'
-    '  recordings are never uploaded anywhere.'
+    '  Heresay is an internal tool that turns an audio or video recording into'
+    '  a timestamped transcript PDF, fast. Everything runs on your own'
+    '  computer: recordings are never uploaded anywhere.'
     ''
     'HOW TO INSTALL'
     ''
@@ -249,13 +258,13 @@ $readmeLines = @(
     'HOW TO USE IT'
     ''
     '  1. In File Explorer, right-click any recording (mp3, m4a, mp4, wav, ...).'
-    '  2. Choose "Transcribe in PDF". On Windows 11 it may sit under'
-    '     "Show more options".'
+    '  2. Choose "Send to", then "Heresay - Generate transcript (PDF)".'
     '  3. A progress window opens. When it finishes, the PDF is saved next to'
     '     the recording.'
     ''
-    '  Transcripts use a fast English-only model and do not separate speakers,'
-    '  which is the right trade for meeting notes.'
+    '  The "Send to" menu also offers faster variants with lower accuracy, a'
+    '  "Solo recording" mode for a single speaker, and "Save as PDF" /'
+    '  "Compress for Word" helpers for existing documents.'
     ''
     'HOW TO UNINSTALL'
     ''
@@ -306,7 +315,7 @@ $distManifest = [ordered]@{
     downloadCacheBundled  = $cacheBundled
 }
 [System.IO.File]::WriteAllText((Join-Path $stageRoot 'dist-manifest.json'),
-    ((($distManifest | ConvertTo-Json) -replace "`r?`n", "`r`n") + "`r`n"),
+    (($distManifest | ConvertTo-Json) + "`r`n"),
     [System.Text.UTF8Encoding]::new($false))
 Write-Ok "commit $commit, $fileCount file(s), cache bundled: $cacheBundled"
 

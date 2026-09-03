@@ -120,6 +120,19 @@ $appFiles = @(
     # -WindowStyle Hidden takes effect). REQUIRED because a missing shim leaves the
     # menu entry pointing at nothing.
     @{ Name = 'Run-Hidden.vbs';          Owner = 'v2';      Required = $true  }
+    # v2. Records system audio (WASAPI loopback) plus the microphone through the NAudio
+    # assemblies in bin\naudio\. REQUIRED: naudio-core and naudio-wasapi are required
+    # components in contracts\download-manifest.json, so an install that fetches and
+    # verifies 415627 bytes of capture library and then ships no script that loads it
+    # has paid the whole cost of the feature and delivered none of it.
+    @{ Name = 'Record-Conversation.ps1'; Owner = 'v2';      Required = $true  }
+    # Registers the recorder's launchers. Required: without it the recorder ships with
+    # no way to start it, which installs cleanly and looks like a missing feature.
+    @{ Name = 'Register-RecordVerb.ps1';  Owner = 'v2';      Required = $true  }
+    # The home window the "Heresay" Start Menu shortcut opens. Required because
+    # Register-RecordVerb.ps1 creates that shortcut unconditionally; shipping the .lnk
+    # without its target puts a dead entry in Start on an otherwise clean install.
+    @{ Name = 'Heresay-Home.ps1';         Owner = 'v2';      Required = $true  }
 )
 
 $layout = @('bin', 'bin\whisper', 'bin\sherpa', 'bin\ffmpeg', 'models', 'app', 'logs')
@@ -462,6 +475,19 @@ if ($dryRun) {
             $n = if ($v.Name) { $v.Name } else { '(default)' }
             Write-TiInfo ("    {0}  [{1}] = {2}" -f ($v.Key -replace '^HKCU:', 'HKCU'), $n, $v.Value)
     }
+        # The recorder's launchers, asked of the script that creates them for the same
+        # reason the Send To list is below: a preview that restates its own copy of what
+        # will happen drifts, and a dry run that under-reports is worse than none because
+        # it gets believed. -WhatIf propagates, so nothing is created here.
+        $recPlanScript = Join-Path $srcApp 'Register-RecordVerb.ps1'
+        if (Test-Path -LiteralPath $recPlanScript) {
+            $recPlan = & $recPlanScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -IconPath $planIcon -WhatIf -WarningAction SilentlyContinue
+            Write-TiInfo 'register the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut:'
+            Write-TiInfo ("    background verb on the desktop and folder backgrounds, label '{0}'" -f $recPlan.MenuText)
+            Write-TiInfo ("    command: {0}" -f $recPlan.Command)
+            Write-TiInfo '    Start Menu shortcut: Heresay.lnk (opens the Heresay home window)'
+            Write-TiInfo '    sweep the retired shortcut: Heresay - Transcribe new conversation.lnk'
+        }
     }
     Write-TiInfo "write $InstallRoot\install-manifest.json"
     Write-TiInfo "copy  $InstallRoot\Uninstall-TranscribeIt.ps1"
@@ -846,16 +872,16 @@ Write-TiOk 'uninstaller staged in the install root'
 #
 #   1. REGISTERED originally as 'Generate transcript (PDF)': pwsh.exe launched
 #      directly, engine DEFAULTS (large-v3-turbo + speaker separation). Believed
-#      harmless because the verb was thought suppressed on this fleet (endpoint-security products
-#      hook Explorer; five labelled probe verbs never showed).
+#      harmless because the verb was thought suppressed on this fleet (Cortex XDR +
+#      BeyondTrust hook Explorer; five labelled probe verbs never showed).
 #   2. Half right: Windows 11's MODERN menu does suppress it, but the verb renders
 #      fine in the CLASSIC menu ("Show more options" / Shift+F10) - which is what
-#      the user actually uses. It burned them: a 60-minute screen recording took
+#      the user actually uses. It burned him: his 60-minute screen recording took
 #      34 minutes (the Send To fast path does it in ~3.5), diarized system audio
 #      into 31 "speakers", and flashed a console for the ~2-3 s pwsh startup tax.
 #      RETIRED that morning (commit b28fc9f): this stage swept the keys and the
 #      smoke test failed on the verb's PRESENCE.
-#   3. REINSTATED the same evening at the user's explicit request - they want the
+#   3. REINSTATED the same evening at the user's explicit request - he wants the
 #      top-level entry and uses the classic menu - with all three defects fixed:
 #      label 'Transcribe in PDF', the FAST profile (-Model ggml-tiny.en-q8_0.bin
 #      -NoDiarization), and silent launch via wscript.exe -> Run-Hidden.vbs ->
@@ -887,6 +913,44 @@ else {
     )
     Write-TiOk "verb registered on $($reg.PerceivedTypes.Count) perceived type(s) + $($reg.Extensions.Count) extension(s)"
     Write-TiInfo "command: $($reg.Command)"
+
+    # The conversation recorder's background verb on the desktop and inside folders,
+    # plus the single "Heresay" Start Menu shortcut, which opens the home window rather
+    # than the recorder (a Start-menu search for the app's name should offer the app,
+    # not one verb of it). A SEPARATE script because that one owns per-file verbs and
+    # every invariant in it is about file types - see the header of
+    # Register-RecordVerb.ps1.
+    #
+    # Its results are APPENDED to the same manifest collections rather than replacing
+    # them, so the uninstaller removes both sets from the one list it already replays.
+    # Getting this wrong would strand registry keys or the Start Menu shortcut - which
+    # lives outside the install root - and this project has already shipped dead menu
+    # entries twice by creating something on a path that did not also record it.
+    $recScript = Join-Path $dstApp 'Register-RecordVerb.ps1'
+    if (-not (Test-Path -LiteralPath $recScript)) { $recScript = Join-Path $srcApp 'Register-RecordVerb.ps1' }
+    if (Test-Path -LiteralPath $recScript) {
+        Write-TiStep 'Registering the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut'
+        $rec = & $recScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot
+        if (-not $rec.Ok) { Write-TiWarn 'the recorder launchers reported a problem; see the messages above. The rest of the install is unaffected.' }
+        # The retired recorder shortcut is swept by the script on every create run, so an
+        # upgrade ends with one Start entry. Say so when it happened, because the person
+        # upgrading is the one who will otherwise wonder where the old entry went.
+        foreach ($gone in @($rec.Removed)) { Write-TiInfo "removed retired Start Menu shortcut: $gone" }
+
+        $manifest.registryKeys = @($manifest.registryKeys) + @($rec.RegistryKeys)
+        $manifest.verbKeys     = @($manifest.verbKeys)     + @($rec.VerbKeys)
+        $manifest.registryValues = @($manifest.registryValues) + @($rec.RegistryValues | ForEach-Object {
+            [pscustomobject]@{ key = $_.Key; name = $_.Name; value = $_.Value; type = $_.Type }
+        })
+        foreach ($lnk in @($rec.ShortcutPaths)) {
+            Add-TiManifestFile -Manifest $manifest -Path $lnk -Component 'shortcut' -NoHash
+        }
+        $manifest.notes = @($manifest.notes) + @(
+            "Recorder launchers: background verb '$($rec.Verb)' ('$($rec.MenuText)') on the desktop and folder backgrounds, plus $(@($rec.ShortcutPaths).Count) Start Menu shortcut(s) named 'Heresay' opening the home window. The Start Menu shortcut is recorded in files[] because it lives outside the install root."
+        )
+        Write-TiOk "recorder verb and Start Menu shortcut registered ($(@($rec.VerbKeys).Count) background verb key(s), $(@($rec.ShortcutPaths).Count) Start Menu shortcut(s))"
+    }
+    else { Write-TiWarn 'app\Register-RecordVerb.ps1 not found; the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut were not created.' }
 }
 
 # =============================================================== 6. MANIFEST ==
@@ -899,7 +963,7 @@ else {
 # false.
 if ($SkipSendTo) {
     Write-TiStep 'Send To entries skipped (-SkipSendTo)'
-    Write-TiInfo 'any existing entries, wherever they point, are left exactly as they are'
+    Write-TiInfo 'the four existing entries, wherever they point, are left exactly as they are'
 }
 elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Create Send To entries')) {
     Write-TiStep 'Creating the Send To entries'
@@ -915,8 +979,7 @@ elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Create Send To entries')) {
 }
 else {
     Write-TiStep 'Creating the Send To entries'
-    $wouldCreate = @(New-TiSendToShortcuts -InstallRoot $InstallRoot -ListOnly)
-    Write-TiInfo ('    would create {0} Send To entr{1} under %APPDATA%\Microsoft\Windows\SendTo' -f $wouldCreate.Count, $(if ($wouldCreate.Count -eq 1) { 'y' } else { 'ies' }))
+    Write-TiInfo '    would create 4 Send To entries under %APPDATA%\Microsoft\Windows\SendTo'
 }
 
 Write-TiStep 'Writing install-manifest.json'
@@ -1084,8 +1147,13 @@ Write-Host "  logs        $InstallRoot\logs"
 Write-Host "  manifest    $manifestPath"
 Write-Host "  uninstall   pwsh -File `"$InstallRoot\Uninstall-TranscribeIt.ps1`""
 Write-Host ''
-if (-not $SkipShellRegistration) {
-    Write-Host '  Right-click any audio or video file (classic menu / "Show more options"): "Transcribe in PDF".'
+if (-not $SkipShellRegistration -or -not $SkipSendTo) {
+    if (-not $SkipShellRegistration) {
+        Write-Host '  Right-click any audio or video file (classic menu / "Show more options"): "Transcribe in PDF".'
+    }
+    if (-not $SkipSendTo) {
+        Write-Host '  Also available under Send to -> "Transcribe in PDF".'
+    }
     Write-Host ''
 }
 Write-TiLog "install finished; smoke failures=$($failed.Count)"

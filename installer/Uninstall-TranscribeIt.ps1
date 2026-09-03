@@ -14,6 +14,9 @@
         listed, because deleting unknown files under a user profile is not this
         script's call to make. -RemoveUnlisted opts in.
       * The right-click entry is verified gone from both perceived types afterwards.
+      * The Start Menu is swept for BOTH the current "Heresay" shortcut and the retired
+        "Heresay - Transcribe new conversation" one, whether or not the manifest lists
+        them, so an uninstall over an upgraded install leaves no dead Start entry.
       * If the manifest is missing or corrupt, -Fallback removes the well-known keys
         and paths instead, and says clearly that it is guessing.
 
@@ -191,6 +194,35 @@ else {
     }
 }
 
+
+# --- recorder background verb (Register-RecordVerb.ps1) ----------------------
+# Register-RecordVerb.ps1 owns the DesktopBackground and Directory\Background
+# right-click keys. They share no keys with Register-ShellVerbs.ps1 (which owns
+# the per-file verb), so they must be cleaned up separately.
+$recordVerbScript = @(
+    (Join-Path $InstallRoot 'app\Register-RecordVerb.ps1'),
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'app\Register-RecordVerb.ps1')
+) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+
+if ($recordVerbScript) {
+    $rv = & $recordVerbScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -Unregister -WhatIf:$dryRun
+    foreach ($r in $rv.Removed) {
+        Write-TiOk "removed: $r"
+        [void]$removed.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r })
+    }
+    foreach ($r in $rv.NotRemoved) {
+        Write-TiFail "could not remove $($r.Path): $($r.Reason)"
+        [void]$notRemoved.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r.Path; Reason = $r.Reason })
+    }
+}
+else {
+    Write-TiWarn 'Register-RecordVerb.ps1 not found; removing the known background-verb keys directly.'
+    foreach ($k in @(
+            'HKCU:\Software\Classes\DesktopBackground\Shell\HeresayRecordConversation',
+            'HKCU:\Software\Classes\Directory\Background\shell\HeresayRecordConversation')) {
+        Remove-TiPath -Path $k -Kind 'registry key' | Out-Null
+    }
+}
 # ============================================================== 3. FILES ==
 
 Write-TiStep 'Removing installed files'
@@ -216,6 +248,19 @@ if (-not $KeepLogs) {
     $runtime += @(Get-ChildItem -LiteralPath (Join-Path $InstallRoot 'logs') -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
 }
 foreach ($r in $runtime) { Remove-TiPath -Path $r -Kind 'runtime file' | Out-Null }
+
+# --- Start Menu ---------------------------------------------------------------
+# The manifest's files[] already carries the shortcut this install created, and the
+# loop above removed it. This sweep exists for what the manifest CANNOT know: an older
+# install's 'Heresay - Transcribe new conversation.lnk' that a later install swept and
+# therefore never recorded, or a current 'Heresay.lnk' left by an install whose manifest
+# was lost. Both live outside the install root, so nothing else here would ever reach
+# them, and a Start entry that outlives the app is the exact failure the Send To names
+# caused twice. Remove-TiPath honours the dry run and records what it removed.
+$startMenuDir = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Microsoft\Windows\Start Menu\Programs'
+foreach ($lnkName in @('Heresay', 'Heresay - Transcribe new conversation')) {
+    Remove-TiPath -Path (Join-Path $startMenuDir ($lnkName + '.lnk')) -Kind 'Start Menu shortcut' | Out-Null
+}
 
 # Anything still under the install root that the manifest never mentioned.
 if (Test-Path -LiteralPath $InstallRoot) {
@@ -271,6 +316,22 @@ if (Test-Path -LiteralPath $cache) {
     }
 }
 
+
+# --- per-user state -----------------------------------------------------------
+# settings.json lives outside the install root and is never recorded in the
+# manifest, so nothing above would remove it. Delete it, then prune the
+# containing directory if it is now empty.
+$userStateDir     = Join-Path $env:LOCALAPPDATA 'TranscribeIt'
+$userSettingsFile = Join-Path $userStateDir 'settings.json'
+if (Test-Path -LiteralPath $userSettingsFile) {
+    Write-TiInfo "removing per-user settings: $userSettingsFile"
+    Remove-TiPath -Path $userSettingsFile -Kind 'settings file' | Out-Null
+}
+if ((Test-Path -LiteralPath $userStateDir) -and
+    @(Get-ChildItem -LiteralPath $userStateDir -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+    Write-TiInfo "removing empty per-user state directory: $userStateDir"
+    Remove-TiPath -Path $userStateDir -Kind 'directory' | Out-Null
+}
 # ============================================================ 5. VERIFY ==
 
 Write-TiStep 'Verifying removal'

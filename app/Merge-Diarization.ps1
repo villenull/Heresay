@@ -409,7 +409,16 @@ function Group-WordsIntoTurns {
   $turns
 }
 
-$rawTurns = Group-WordsIntoTurns -WordList $words
+# @() is load-bearing, not decoration: PowerShell UNROLLS a collection on the way
+# out of a function, so an empty $turns comes back as $null and the very next
+# statement (a $rawTurns.Count test) throws under Set-StrictMode. MEASURED: a
+# 9.8 s recording made with the microphone muted transcribes to zero words,
+# whisper writes an empty transcription array, and the merge died on that .Count
+# with "The property Count cannot be found on this object" - which reached the
+# user as "Speaker alignment failed", which is not what happened. The zero-word
+# case is already handled deliberately further down (it adds the No speech was
+# detected warning), so the only defect was never reaching it.
+$rawTurns = @(Group-WordsIntoTurns -WordList $words)
 
 # ------------------------------ coalesce spurious interrupting speakers ------
 
@@ -471,7 +480,7 @@ if ($rawTurns.Count -ge 3) {
       $coalescedSpeakers++
     }
   }
-  if ($coalescedSpeakers -gt 0) { $rawTurns = Group-WordsIntoTurns -WordList $words }
+  if ($coalescedSpeakers -gt 0) { $rawTurns = @(Group-WordsIntoTurns -WordList $words) }
 }
 
 # ------------------------------------- refine boundaries at sentence edges ---

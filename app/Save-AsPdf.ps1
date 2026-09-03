@@ -1,10 +1,9 @@
 <#
 .SYNOPSIS
-    Exports a Word document to PDF beside itself. Run it directly - the "Save as PDF"
-    Send To entry was retired, so this script has no menu entry of its own.
+    "Send to -> Heresay - Save as PDF" - exports a Word document to PDF beside itself.
 
 .DESCRIPTION
-    Closes the last gap in the Word for the web transcription flow. Transcription runs in
+    Closes the last gap in the Word for the web transcription flow. Diego transcribes in
     Word (upload -> transcribe -> add to document), and the remaining step is exporting a
     PDF, which is several clicks inside Word.
 
@@ -16,8 +15,9 @@
     be automated by any legitimate route. This automates only the export.
 
 .PARAMETER Paths
-    Documents to convert. Each path is passed as a separate argument. Anything that
-    is not a Word document is skipped with a message rather than silently ignored.
+    Documents to convert. Explorer's Send To passes every selected item as a separate
+    argument. Anything that is not a Word document is skipped with a message rather than
+    silently ignored.
 
 .NOTES
     THE HAZARD THIS SCRIPT IS BUILT AROUND: if we quit or hide a Word instance the user is
@@ -87,8 +87,7 @@ function Show-Message([string] $Text, [string] $Icon = 'Information') {
 
 $files = @($Paths | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) })
 if (-not $files.Count) {
-    Show-Message ("No Word documents were passed. Run this script with the documents as arguments, for example:`n`n" +
-                  'pwsh -File Save-AsPdf.ps1 "C:\path\report.docx"')
+    Show-Message 'Select one or more Word documents, then use Send to > Heresay - Save as PDF.'
     exit 2
 }
 

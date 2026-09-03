@@ -27,7 +27,7 @@ Rules that matter:
 - `words` **may be empty**. Never depend on it. Word timings are a bonus for future
   features, not a requirement for rendering.
 - `speakers[]` is ordered by first appearance, so `Speaker 1` is whoever spoke first.
-- `warnings[]` are **not rendered in the PDF** (decision 2026-08-26: the PDF was specified
+- `warnings[]` are **not rendered in the PDF** (decision 2026-08-26: Diego asked for the PDF
   to contain the transcript only — no header block, no metadata, no warnings box, no speakers
   table, no legend). They stay in the JSON and reach the user through the completion UI
   instead, which already receives them on the `result` event. Do not reintroduce them into
@@ -122,8 +122,9 @@ so the bar keeps moving to 100%.
 | Path | Owner |
 |---|---|
 | `app/Transcribe.ps1`, `app/Merge-Diarization.ps1`, `app/config.default.json` | Track A |
-| `vendor/**`, `contracts/download-manifest.json` | Track A |
-| `app/Render-Pdf.ps1`, `app/template.html` | Track B |
+| `vendor/**`, `contracts/download-manifest.json`, `docs/benchmark.md` | Track A |
+| `app/Render-Pdf.ps1`, `app/template.html`, `test/render/**` | Track B |
 | `installer/**`, `app/Register-ShellVerbs.ps1` | Track C |
-| `app/Progress.ps1` | Track E |
+| `app/Progress.ps1`, `test/replay-progress.ps1` | Track E |
+| `docs/it-approval-memo.md`, `docs/technical-appendix.md` | Track D |
 | `contracts/*.schema.json`, `contracts/*.example.json`, `contracts/*.jsonl` | **nobody — frozen** |

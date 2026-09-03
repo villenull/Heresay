@@ -126,8 +126,8 @@ $script:TurnCount         = -1
 
 # Interpreter startup + script parse: everything that happened before the first
 # line of this script executed. The engine spawns a whole new pwsh for every
-# render, and that cost was long estimated at ~1.2 s without ever having
-# been measured. This is that measurement.
+# render and docs/pipeline-optimisation.md 6 estimates ~1.2 s for it without
+# ever having measured it. This is that measurement.
 #
 # Only meaningful when this pwsh was launched FOR this script, which is how the
 # engine invokes it (-File Render-Pdf.ps1). When the script is called inside a
@@ -592,7 +592,7 @@ if ($warnings.Count -gt 0) {
 }
 
 # The dagger on an uncertain turn is deliberately left unexplained in the
-# document: the brief was for the marker to stay but for no legend or footnote
+# document: Diego asked for the marker to stay but for no legend or footnote
 # anywhere (decision 2026-08-26). The count is reported on the console instead.
 $langAttr = 'en'
 if ($language -match '^[A-Za-z][A-Za-z0-9-]{0,34}$') { $langAttr = $language }
@@ -816,7 +816,7 @@ try {
             # as "PDF was left incomplete" - which then cost a FULL RETRY, i.e.
             # a doubled render stage. Measured in the wild: 1 render in 80 on an
             # idle machine, and the doubling is the mechanism behind the 77.2 s
-            # and 94.7 s readings measured on this stage.
+            # and 94.7 s readings in docs/pipeline-optimisation.md 4.3.
             #
             # This block used to take a single reading here and break, on the
             # reasoning that "once Edge has exited it cannot append another
