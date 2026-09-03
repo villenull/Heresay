@@ -9,7 +9,7 @@ Heresay turns meeting recordings into timestamped, speaker-labeled PDF transcrip
 ## What it does
 
 - **Right-click any recording** → transcript PDF appears next to the file.
-- **Record a live meeting** → system audio and microphone captured together, then transcribed.
+- **Record a live meeting** → right click on your desktop, system audio and microphone captured together and transcribed.
 - **Three quality levels** — from a fast English-only model to a slower multilingual one with speaker separation.
 
 ---
