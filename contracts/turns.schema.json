@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://transcribeit.local/contracts/turns.schema.json",
   "title": "TranscribeIt transcript contract v1",
-  "description": "FROZEN CONTRACT. Produced by Track A (engine). Consumed by Track B (renderer). All times are seconds as floating point, measured from the start of the source media. Do not change field names or semantics without bumping schemaVersion.",
+  "description": "Produced by the transcription engine and consumed by the PDF renderer. Times are floating-point seconds from the start of the source media. Semantic changes require a schemaVersion bump.",
   "type": "object",
   "required": ["schemaVersion", "source", "processing", "speakers", "turns"],
   "additionalProperties": false,

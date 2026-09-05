@@ -3,7 +3,7 @@
     Registers (or removes) the TranscribeIt Windows Explorer right-click verb.
 
 .DESCRIPTION
-    Track C. User-scope only. Never touches HKLM and never requires elevation.
+    User-scope only. Never touches HKLM and never requires elevation.
 
     Registration strategy: PerceivedType, not a hard-coded extension list.
 
@@ -150,7 +150,7 @@ function Resolve-PwshPath {
     $candidates = @(
         'C:\Program Files\PowerShell\7\pwsh.exe',
         (Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
-        # Portable per-user copy installed by installer\Bootstrap-Pwsh.ps1 when Program Files pwsh is absent (no admin on this fleet).
+        # Portable per-user copy installed when Program Files pwsh is absent.
         (Join-Path $env:LOCALAPPDATA 'Programs\PowerShell7\pwsh.exe'),
         (Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\pwsh.exe')
     )
@@ -469,39 +469,9 @@ if (-not (Test-Path -LiteralPath $shim)) {
     Write-Warning "Silent-launch shim not present yet: $shim. Registering anyway; the verb will fail until the installer copies app files into place."
 }
 
-# Launch through wscript.exe + Run-Hidden.vbs, NOT pwsh.exe directly. This line has
-# flipped once already, so the reasoning is spelled out:
-#
-#   The original registration targeted pwsh directly and refused the shim on the
-#   grounds that a registry verb chaining wscript -> VBS -> hidden pwsh is a textbook
-#   malware-persistence pattern that this fleet's endpoint agent would flag. That
-#   concern was ASSERTED, never tested, and the counter-evidence is now strong: the
-#   Send To entries have been running the IDENTICAL process chain (explorer.exe ->
-#   wscript.exe -> Run-Hidden.vbs -> hidden pwsh) on this exact machine repeatedly
-#   all day (2026-08-27) with zero endpoint-security reaction. The user explicitly
-#   asked for a silent top-level entry, which pwsh-direct cannot deliver: pwsh.exe
-#   is a console-subsystem binary, so its console host window flashes for the ~2-3 s
-#   startup the endpoint-security process-creation tax imposes, whatever flags it
-#   is passed (see Run-Hidden.vbs for the measurement).
-#
-#   FALLBACK if the endpoint agent ever suppresses or blocks this verb: re-point the
-#   command at $pwsh directly ('"{0}" -NoProfile -NonInteractive -ExecutionPolicy
-#   Bypass -WindowStyle Hidden -File "{1}" ...') and accept the flash - or rely on
-#   the Send To entries, which remain installed.
-#
-# The command carries NOTHING but the file. It used to pin the fast profile here
-# (-Model ggml-tiny.en-q8_0.bin -NoDiarization, because engine defaults - large model
-# plus speaker separation - took 34 minutes on a 60-minute recording that the fast
-# profile did in ~3.5), but the model and the speaker switch are now chosen by
-# Transcribe-Entry.ps1 from the quality level the home window saves to settings.json,
-# and a registry value cannot follow a setting that changes after installation. Its
-# default when nothing is saved is 'fastest', which is that same tiny.en profile, so a
-# fresh install behaves exactly as this verb always did. See the "quality resolution"
-# section of Transcribe-Entry.ps1 for the level-to-model table.
-#
-# "%1" is quoted (Explorer substitutes the selected file's full path there), and
-# Run-Hidden.vbs re-quotes every argument individually, so paths with spaces survive
-# the hand-off - proven end to end via Send To on this machine.
+# Launch through wscript.exe and Run-Hidden.vbs so PowerShell startup does not flash a
+# console. The command passes only the selected path; Transcribe-Entry.ps1 resolves
+# quality from settings.json. Both script paths and "%1" are quoted for spaces.
 $wscript = 'C:\Windows\System32\wscript.exe'
 $command = '"{0}" "{1}" "{2}" -Path "%1"' -f $wscript, $shim, $entry
 $icon    = Resolve-IconValue -Explicit $IconPath -Root $InstallRoot -Pwsh $pwsh

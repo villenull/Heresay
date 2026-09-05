@@ -4,7 +4,7 @@
     window draws at runtime.
 
 .DESCRIPTION
-    Supersedes New-AppIcon.ps1 (Track C's original three-line page mark).
+    Generates the current rounded speech-bubble app mark.
 
     The point of this script is that the icon geometry is single-sourced. Rather than
     duplicating the drawing code here - which would silently drift the moment either
