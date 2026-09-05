@@ -3,7 +3,7 @@
     The Heresay setup window: a graphical installer wizard for TranscribeIt.
 
 .DESCRIPTION
-    Launched hidden by "Install Heresay.vbs" as:
+    Launched hidden by `Install-Heresay.vbs` as:
         powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File installer\Install-Gui.ps1 [args]
 
     This script runs on STOCK Windows PowerShell 5.1 and deliberately uses no
@@ -15,7 +15,7 @@
          absent (its "  ... 20 MB of 101 MB" lines drive the progress bar), then
       2. installer\Install-TranscribeIt.ps1 under the found pwsh 7, with
          -SourceRoot <repo root> and -DownloadCache <root>\download-cache when
-         that folder ships beside the installer (mirrors Install Heresay.cmd),
+         that folder is present in an offline package,
          plus any arguments this script itself received, passed through verbatim
          (testers use -InstallRoot/-RegistryRoot/-Skip*/-WhatIf; users pass none).
 
@@ -105,7 +105,7 @@ function Format-Bytes {
 }
 
 function Find-Pwsh7 {
-    # Same order as Install Heresay.cmd and Install-Common.ps1's Find-TiPwsh
+    # Same order as Install-Common.ps1's Find-TiPwsh
     # (minus $PSHOME, which is Windows PowerShell here): Program Files, then the
     # per-user portable copy Bootstrap-Pwsh.ps1 installs, then PATH.
     $candidates = @(
@@ -870,8 +870,8 @@ function Start-Installer {
     $UI.BarOverall.IsIndeterminate = $true
     try { $win.TaskbarItemInfo.ProgressState = [System.Windows.Shell.TaskbarItemProgressState]::Indeterminate } catch { }
     $installer = Join-Path $script:InstallerDir 'Install-TranscribeIt.ps1'
-    # Mirrors Install Heresay.cmd exactly: -SourceRoot is the folder holding app\
-    # and installer\, and -DownloadCache only when the offline package ships one.
+    # -SourceRoot is the folder holding app\ and installer\; -DownloadCache is
+    # supplied only when the embedded package includes an offline cache.
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installer,
               '-SourceRoot', $script:SourceRoot)
     if ($script:HasOffline) { $argv += @('-DownloadCache', $script:DownloadCache) }
@@ -1153,7 +1153,7 @@ catch {
         Add-Type -AssemblyName PresentationFramework -ErrorAction SilentlyContinue
         [void][System.Windows.MessageBox]::Show(
             ("The Heresay setup window could not start:`r`n`r`n" + $msg +
-             "`r`n`r`nYou can still install with the console version: double-click 'Install Heresay.cmd'."),
+             "`r`n`r`nClose this message and run Install-Heresay.vbs again."),
             'Heresay Setup')
     }
     catch { }
