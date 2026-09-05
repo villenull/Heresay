@@ -2,8 +2,7 @@
 '
 ' WHY THIS EXISTS: pwsh.exe is a console-subsystem executable, so Windows creates its
 ' console host window at process creation, and that window stays on screen until pwsh
-' has started up and parsed -WindowStyle Hidden - measured ~2.3 s on this machine
-' under the endpoint-security process-creation tax. A shortcut that targets pwsh.exe
+' has started and parsed -WindowStyle Hidden. A shortcut that targets pwsh.exe
 ' directly therefore ALWAYS flashes a console for those seconds, whatever flags it
 ' passes. wscript.exe is a GUI-subsystem host: it never owns a console, and it starts
 ' pwsh below with window style 0 (SW_HIDE), so nothing ever appears.
@@ -13,15 +12,14 @@
 ' pwsh.exe is located at RUN TIME, not hardcoded: %ProgramFiles%\PowerShell\7 first,
 ' then the portable per-user copy at %LOCALAPPDATA%\Programs\PowerShell7 that
 ' installer\Bootstrap-Pwsh.ps1 lays down when the Program Files install is absent
-' (no admin on this fleet).
+' (no administrator rights required).
 '
-' Every argument is re-quoted individually because the Send To menu appends the
-' selected media file paths to the shortcut's command line, and those paths contain
+' Every argument is re-quoted individually because Explorer supplies selected media
+' paths to the command line, and those paths can contain
 ' spaces - joining them unquoted would split "C:\call recordings\a.m4a" into two
 ' arguments. Uniform quoting is safe on the receiving side: pwsh's -File argument
 ' parser sees tokens AFTER quote removal, so a quoted "-Model" still binds as the
-' parameter and quoted bare paths still land in the script's remaining-arguments
-' parameter (SendTo-Heresay.ps1 declares PositionalBinding=$false for exactly that).
+' parameter and quoted bare paths remain single arguments.
 ' VBS note: inside a VBS string literal a double quote is escaped by doubling it ("").
 
 Option Explicit
@@ -37,7 +35,7 @@ End If
 
 ' Resolve pwsh.exe at run time: the machine-wide install first, then the portable
 ' per-user copy that installer\Bootstrap-Pwsh.ps1 installs when Program Files pwsh
-' is absent (no admin on this fleet).
+' is absent (no administrator rights required).
 Dim shell, fso, pwshPath, candidate
 Set shell = WScript.CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -61,7 +59,7 @@ If pwshPath = "" Then
     WScript.Quit 3
 End If
 
-' Same flags the Send To shortcuts passed when they targeted pwsh directly.
+' Use the same non-interactive flags as the shell launch path.
 ' -WindowStyle Hidden is belt-and-braces here (the Run call's window style 0 already
 ' hides everything) but keeps a copied command line behaving the same anywhere.
 cmd = """" & pwshPath & """" & _
@@ -73,5 +71,5 @@ For i = 1 To vbsArgs.Count - 1
 Next
 
 ' 0 = SW_HIDE: the launched process gets no visible window.
-' False = do not wait: Send To should return to Explorer immediately.
+' False = do not wait; Explorer should return immediately.
 shell.Run cmd, 0, False

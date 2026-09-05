@@ -60,7 +60,7 @@ The window also has a **Transcribe a file…** button that opens a file picker, 
 
 ## What the installer does
 
-[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 927-line installer; read it before you run it.
+[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 859-line installer; read it before you run it.
 
 1. It decodes its comment-only, base64 package into a fresh `%TEMP%\Heresay-Setup-*` folder and starts `installer\Install-Gui.ps1`. The temporary folder and bootstrap `.ps1` may remain after setup closes.
 2. If PowerShell 7 is missing, it downloads the pinned Microsoft release from GitHub, verifies its SHA256, and installs it under `%LOCALAPPDATA%\Programs\PowerShell7`.

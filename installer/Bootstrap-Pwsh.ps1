@@ -67,7 +67,7 @@ function Test-PwshRuns {
 function Invoke-BootstrapDownload {
     <# Stream the URL to $Destination, printing progress every 20 MB. Uses the system
        proxy with default credentials, mirroring Install-Common.ps1's Get-TiHttpClient,
-       so the corporate proxy and its TLS inspection are honoured. #>
+       so the current user's system proxy settings are honoured. #>
     param(
         [string] $Url,
         [string] $Destination
@@ -234,7 +234,7 @@ try {
     }
 
     # Smoke test: prove the freshly extracted pwsh actually starts on THIS machine.
-    # If it will not start, the likeliest cause on this fleet is the endpoint security
+    # If it will not start, security software may have blocked or quarantined it.
     # agent blocking it - say so, and name the fallback.
     Write-Step "Checking the new PowerShell 7 starts..."
     $smokeOk = $false

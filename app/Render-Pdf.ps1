@@ -3,7 +3,7 @@
     Renders a TranscribeIt transcript JSON document into a finished PDF.
 
 .DESCRIPTION
-    Track B (renderer). Consumes the FROZEN transcript contract in
+    Consumes the transcript contract in
     contracts/turns.schema.json and produces a print-ready PDF via
     app/template.html and headless Microsoft Edge (--print-to-pdf).
 
@@ -100,7 +100,7 @@ $script:ExitCode = 0
 #  Invoke-Render in app/Transcribe.ps1: stdout and stderr are logged only when
 #  the exit code is non-zero). A retry that eventually succeeds is therefore
 #  completely invisible - it just looks like a slow render, which is precisely
-#  why the 11.2 s - 94.7 s spread Track B2 measured on identical input could
+#  why headless rendering time can vary substantially on identical input and
 #  never be attributed. Every render now appends one JSON line to a durable log
 #  of its own, carrying the attempt count, the per-attempt duration and the
 #  split between interpreter startup, document preparation and Edge itself.
@@ -126,12 +126,12 @@ $script:TurnCount         = -1
 
 # Interpreter startup + script parse: everything that happened before the first
 # line of this script executed. The engine spawns a whole new pwsh for every
-# render and docs/pipeline-optimisation.md 6 estimates ~1.2 s for it without
+# render and is expected to take about 1.2 s without
 # ever having measured it. This is that measurement.
 #
 # Only meaningful when this pwsh was launched FOR this script, which is how the
 # engine invokes it (-File Render-Pdf.ps1). When the script is called inside a
-# host that was already running - Track B's own test harness does exactly that -
+# host that was already running (as a test harness may do),
 # the process start time is unrelated to this render and the number would
 # silently grow all session. Detected from the process command line, which
 # GetCommandLineArgs returns for free; asking CIM would cost more than the
@@ -592,7 +592,7 @@ if ($warnings.Count -gt 0) {
 }
 
 # The dagger on an uncertain turn is deliberately left unexplained in the
-# document: Diego asked for the marker to stay but for no legend or footnote
+# document: the marker stays without a legend or footnote
 # anywhere (decision 2026-08-26). The count is reported on the console instead.
 $langAttr = 'en'
 if ($language -match '^[A-Za-z][A-Za-z0-9-]{0,34}$') { $langAttr = $language }
@@ -701,7 +701,7 @@ try {
     # Browser profile: reuse a persistent one on the first attempt, fall back to a
     # throwaway afterwards.
     #
-    # Why: Track B2 measured this stage swinging 11.2 -> 94.7 s on IDENTICAL input,
+    # Headless Edge has shown large timing variance on identical input,
     # an 8.5x spread larger than every saving that track made. A brand-new
     # --user-data-dir forces Chromium to build a profile from scratch every render -
     # create the directory tree, initialise preferences, and on a managed machine
@@ -816,7 +816,7 @@ try {
             # as "PDF was left incomplete" - which then cost a FULL RETRY, i.e.
             # a doubled render stage. Measured in the wild: 1 render in 80 on an
             # idle machine, and the doubling is the mechanism behind the 77.2 s
-            # and 94.7 s readings in docs/pipeline-optimisation.md 4.3.
+            # across repeated runs.
             #
             # This block used to take a single reading here and break, on the
             # reasoning that "once Edge has exited it cannot append another

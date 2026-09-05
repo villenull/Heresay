@@ -3,7 +3,7 @@
     Thin launcher invoked by the Explorer right-click verb. Serialises multi-select.
 
 .DESCRIPTION
-    Track C. This is the process Explorer starts, once per selected file.
+    This is the process Explorer starts, once per selected file.
 
     THE PROBLEM
     A classic (non-COM) shell verb is invoked ONCE PER SELECTED ITEM. Select five
@@ -26,7 +26,7 @@
 
     BATCH OWNERSHIP
     Because this script owns the batch boundary, it also owns the batch-level view
-    of the progress stream that Track E consumes:
+    of the progress stream that the UI consumes:
 
       * itemIndex / itemTotal / itemName are rewritten on pass-through, so the UI can
         say "File 2 of 5" even though the engine only ever sees one file at a time.
@@ -36,7 +36,7 @@
         at the end of the batch, so FlashWindowEx fires exactly once.
 
     Both behaviours can be turned off in config.json (queue.rewriteItemFields,
-    queue.rescaleOverallPercent) if Track A takes over batch maths later.
+    queue.rescaleOverallPercent) for compatibility and diagnostics.
 
 .PARAMETER Path
     The media file, supplied by Explorer as %1.
@@ -56,7 +56,7 @@
     setting is bypassed and the command line alone decides, exactly as before the
     quality setting existed (a -Model with no -NoDiarization leaves speaker
     separation to config.json; a -NoDiarization with no -Model leaves the model to
-    config.json). The Send To wrapper still uses these.
+    config.json).
 
     Whatever is resolved is stored on the QUEUE ITEM rather than held in the worker,
     because the worker is whichever invocation happened to win the mutex - not
@@ -67,7 +67,7 @@
     Declared after the switches on purpose. $Path is explicitly Position 0 and the
     remaining non-switch parameters take the positional slots after it in
     declaration order, so appending here cannot move an existing slot. Every caller
-    (the Send To wrapper, the recorder and Register-ShellVerbs) passes -Path by name
+    (the recorder and Register-ShellVerbs) passes -Path by name
     anyway.
 
 .PARAMETER Quality
@@ -124,8 +124,8 @@ $LockFile = Join-Path $LogDir 'queue.lock'
 $StateFile = Join-Path $LogDir 'batch-state.json'
 $EntryLog = Join-Path $LogDir 'entry.log'
 
-# Cancellation seam. Track E's Progress.ps1 CREATES this sentinel when the user clicks
-# Cancel; Track A's Transcribe.ps1 POLLS it (as -CancelSignalFile) and stops cleanly.
+# Cancellation seam. Progress.ps1 creates this sentinel when the user clicks Cancel;
+# Transcribe.ps1 polls it (as -CancelSignalFile) and stops cleanly.
 # Neither of them knows about the other, so wiring the same path into both is this
 # script's job - it is the only process that launches them both. The default matches
 # Progress.ps1's documented default so the two agree even if one is started by hand.
@@ -247,7 +247,7 @@ function Get-PwshPath {
         (Join-Path $PSHOME 'pwsh.exe'),
         'C:\Program Files\PowerShell\7\pwsh.exe',
         (Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
-        # Portable per-user copy installed by installer\Bootstrap-Pwsh.ps1 when Program Files pwsh is absent (no admin on this fleet).
+        # Portable per-user copy installed when Program Files pwsh is absent.
         (Join-Path $env:LOCALAPPDATA 'Programs\PowerShell7\pwsh.exe'))) {
         if ($c -and (Test-Path -LiteralPath $c)) { return $c }
     }
@@ -291,7 +291,7 @@ function Resolve-TranscriptionProfile {
        Precedence, highest first:
          1. -Model / -NoDiarization on the command line. Either one present means
             the command line alone decides both fields, byte-for-byte the pre-quality
-            behaviour, so the Send To wrapper and any test that passes them see no
+            behaviour, so callers and tests that pass them see no
             change at all.
          2. -Quality when it is not 'auto'.
          3. The level saved in settings.json.
@@ -453,7 +453,7 @@ function Get-LockInfo {
 }
 
 function Write-BatchState {
-    <# Batch position, readable by Track E without parsing the event stream. #>
+    <# Batch position, readable by the progress UI without parsing the event stream. #>
     param([hashtable] $State)
     try {
         $tmp = "$StateFile.tmp"
@@ -542,8 +542,7 @@ function Convert-EngineLine {
 # ------------------------------------------------------------ child invocation --
 
 function Get-ScriptParameterNames {
-    <# Track A and Track E are still being written, so discover what their scripts
-       actually accept instead of guessing and crashing. #>
+    <# Discover what the target scripts accept rather than coupling to one version. #>
     param([string] $ScriptPath)
     try {
         $tokens = $null; $errors = $null
@@ -593,7 +592,7 @@ function Invoke-Engine {
     if (-not $pathParam) { $pathParam = 'Path' }
     $argList.Add("-$pathParam"); $argList.Add($MediaPath)
 
-    # Pass batch coordinates only if the engine actually declares them. Track A's
+    # Pass batch coordinates only if the engine actually declares them. The shipped
     # Transcribe.ps1 does not, which is exactly why Convert-EngineLine rewrites
     # itemIndex/itemTotal and rescales overallPercent on the way out.
     if ($declared -contains 'ItemIndex') { $argList.Add('-ItemIndex'); $argList.Add("$ItemIndex") }
@@ -609,8 +608,8 @@ function Invoke-Engine {
     }
 
     # Solo mode. Same discover-do-not-guess rule. With the switch absent the command
-    # line is byte-for-byte what it was before, which is what keeps the two existing
-    # Send To entries' behaviour identical.
+    # line is byte-for-byte what it was before, preserving behavior for callers that
+    # omit this switch.
     if ($SkipDiarization -and ($declared -contains 'NoDiarization')) { $argList.Add('-NoDiarization') }
     elseif ($SkipDiarization) {
         Write-EntryLog "engine '$EngineScript' does not declare -NoDiarization; ignoring the request and leaving speaker separation on." 'WARN'
@@ -698,7 +697,7 @@ function Start-ProgressUi {
         $declared = Get-ScriptParameterNames -ScriptPath $ProgressScript
         $argList = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $ProgressScript)
 
-        # Track E's Progress.ps1 documents -Path as "a .jsonl file to read and then tail",
+        # Progress.ps1 documents -Path as "a .jsonl file to read and then tail",
         # which is exactly our batch event log.
         $evtParam = @('EventLog', 'EventFile', 'EventStream', 'JsonlPath', 'InputFile', 'Path') | Where-Object { $declared -contains $_ } | Select-Object -First 1
         if ($evtParam) { $argList += @("-$evtParam", $EventLogPath) }

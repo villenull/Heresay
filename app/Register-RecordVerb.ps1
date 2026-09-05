@@ -23,19 +23,12 @@
       2. A Start Menu shortcut named "Heresay", which opens the app's HOME window
          (app\Heresay-Home.ps1), not the recorder.
 
-    The Start Menu entry exists because the background verb alone is not a reliable
-    surface. This fleet's endpoint security hooks Explorer and hides newly registered
-    verbs from the Windows 11 MODERN context menu - proven with five labelled probe
-    verbs, and the per-file verb only ever renders in the CLASSIC menu ("Show more
-    options"). Whether the BACKGROUND roots behave the same way could not be established
-    from a script: enumerating them programmatically returns keys the shell may still
-    decline to draw, so only a human right-click is authoritative. A Start Menu shortcut
-    has no such doubt, is reachable from Windows Search by typing a few letters, and
-    costs one .lnk. Pass -NoStartMenu to skip it.
+    The Start Menu entry provides a reliable launch surface even when Windows places
+    registered verbs under the classic "Show more options" menu. Pass -NoStartMenu to
+    skip it.
 
-    Why the shortcut opens the home window rather than the recorder (2026-09-03, on the
-    maintainer's request): someone who types "Heresay" into Start expects to find THE
-    APP, not one of its verbs. The previous shortcut, "Heresay - Transcribe new
+    The shortcut opens the home window rather than starting a recording immediately.
+    The previous shortcut, "Heresay - Transcribe new
     conversation", started a recording the instant it was clicked, which is a surprising
     thing for a Start Menu entry to do and left no way to reach anything else the app
     offers. The recorder is still one click away from the home window and from the
