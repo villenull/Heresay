@@ -3,7 +3,7 @@
     Removes TranscribeIt, driven by install-manifest.json.
 
 .DESCRIPTION
-    Track C. Removes exactly what the installer recorded creating - every file, every
+    Removes exactly what the installer recorded creating - every file, every
     directory, every registry key and value - so the removal is provable rather than a
     best guess at what an install probably looked like.
 

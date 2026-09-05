@@ -10,8 +10,7 @@ logs/
 build/dist*/
 build/*.zip
 
-# Media. The fixtures are large and reproducible; ground-truth.json beside them is not,
-# and is deliberately still tracked.
+# Media recordings and generated fixtures.
 *.wav
 *.m4a
 *.mp3
@@ -21,8 +20,7 @@ build/*.zip
 *.wma
 *.aac
 
-# Generated output: rendered PDFs, benchmark and accel harness results. The distilled
-# findings live in docs/benchmark*.md and docs/acceleration-plan.md, which are tracked.
+# Generated output from rendering and local performance work.
 *.pdf
 test/bench/out/
 test/bench/media/

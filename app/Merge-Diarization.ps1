@@ -5,7 +5,7 @@
   transcript document conforming to contracts/turns.schema.json.
 
 .DESCRIPTION
-  Track A owns this file. It is called by Transcribe.ps1 but is deliberately
+  Called by Transcribe.ps1 but deliberately
   runnable standalone so the alignment can be tested without models or audio:
 
     ./Merge-Diarization.ps1 -WhisperJson x.json -SegmentsJson y.json -OutJson turns.json
@@ -771,7 +771,7 @@ if ($ContextJson -and (Test-Path -LiteralPath $ContextJson)) {
     speakerCountMode             = 'auto'
     elapsedSeconds               = 0
     realTimeFactor               = $null
-    toolVersion                  = '0.1.0'
+    toolVersion                  = '0.2.0'
   }
 }
 

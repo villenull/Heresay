@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://transcribeit.local/contracts/progress.schema.json",
   "title": "TranscribeIt progress event contract v1",
-  "description": "FROZEN CONTRACT. Emitted by Track A (engine) as JSON Lines - exactly one compact JSON object per line, UTF-8, newline-terminated, flushed immediately. Consumed by Track E (WPF taskbar UI) which tails the stream. The UI must ignore unrecognised 'type' values and unrecognised fields rather than failing, so the engine can add events later without breaking it.",
+  "description": "Emitted by the engine as JSON Lines and consumed by the progress UI. Unknown event types and fields are ignored for forward compatibility.",
 
   "$defs": {
     "stage": {

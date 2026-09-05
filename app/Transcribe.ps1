@@ -5,7 +5,6 @@
   separated transcript, 100% locally, and hands off to the PDF renderer.
 
 .DESCRIPTION
-  Track A owns this file; Track B2 owns the concurrency and the stage timing.
   Pipeline:
 
     ffprobe     -> duration, container, codec
@@ -20,12 +19,12 @@
             +--------+--------+
                      |
     merge       -> contracts/turns.schema.json document
-    render      -> PDF (Track B)
+    render      -> PDF
 
   whisper and sherpa consume only the WAV and neither reads the other's output,
   so the diarizer is launched as soon as the WAV exists and collected after
   transcription. That takes its whole wall clock off the critical path - 8 s on a
-  short clip, 31-61 s on a long one. See docs/pipeline-optimisation.md.
+  short clip and longer on extended recordings.
 
   Per-stage wall clock is written to the LOG as "STAGE <name> = <seconds>" and
   summarised as one "STAGES {...}" line per item. It never goes to stdout.
@@ -61,7 +60,7 @@ param(
   [Parameter(Mandatory, Position = 0)][string[]]$Path,
   # A Windows shell verb hands multiple selected files over as separate argv
   # entries, not as one comma-joined value, so accept both -Path a,b and
-  # -Path a b rather than making Track C reshape the command line.
+  # -Path a b without requiring the caller to reshape the command line.
   [Parameter(ValueFromRemainingArguments)][string[]]$AdditionalPaths,
   [ValidateRange(0, 20)][int]$Speakers = 0,
   [string]$Model,
@@ -109,7 +108,7 @@ function Get-Utc { (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 
 # --------------------------------------------------------- stage timing ------
 
-# Attribution for docs/pipeline-optimisation.md. The progress stream carries
+# Timing diagnostics. The progress stream carries
 # whole-second UTC timestamps, which cannot resolve a 3 s stage, so stage cost is
 # measured here instead and written to the LOG - stdout is the progress contract
 # and may not carry diagnostics. Independent named stopwatches rather than a
@@ -189,7 +188,7 @@ $script:CurrentProc = $null
 $script:BgProcs = [System.Collections.Generic.List[object]]::new()
 
 try {
-  # Ctrl+C in a console; Track E would normally use -CancelSignalFile instead
+  # Ctrl+C in a console; the progress UI normally uses -CancelSignalFile instead
   [Console]::add_CancelKeyPress({
     param($sender, $e)
     $e.Cancel = $true
@@ -522,7 +521,7 @@ function Invoke-Tool {
 
   if (-not (Test-Path -LiteralPath $FilePath)) {
     throw (New-Failure -Stage $Tag -Kind 'binaryMissing' -InstallLevel `
-      -Message "$ComponentName is missing or was blocked by endpoint security. It may have been quarantined. Please send the log file to IT." `
+      -Message "$ComponentName is missing or may have been quarantined by security software. Check the log for details." `
       -Detail "not found: $FilePath")
   }
 
@@ -552,7 +551,7 @@ function Invoke-Tool {
     switch ($code) {
       5 {
         throw (New-Failure -Stage $Tag -Kind 'binaryBlocked' -InstallLevel `
-          -Message "$ComponentName was blocked from running by endpoint security or antivirus. It may have been quarantined. Please send the log file to IT." -Detail $detail)
+          -Message "$ComponentName was blocked by security software or may have been quarantined. Check the log for details." -Detail $detail)
       }
       1260 {
         throw (New-Failure -Stage $Tag -Kind 'binaryBlockedByPolicy' -InstallLevel `
@@ -574,7 +573,7 @@ function Invoke-Tool {
       }
       default {
         throw (New-Failure -Stage $Tag -Kind 'binaryBlocked' -InstallLevel `
-          -Message "$ComponentName could not be started. It may have been blocked or quarantined by endpoint security. Please send the log file to IT." -Detail $detail)
+          -Message "$ComponentName could not be started and may have been quarantined by security software. Check the log for details." -Detail $detail)
       }
     }
   }
@@ -1287,7 +1286,7 @@ function Invoke-Render {
 
     $r = Invoke-RendererInProcess -NamedArgs $namedArgs
     if ($r.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $PdfPath)) {
-      # Track B's signature is not pinned by the contracts; retry positionally
+      # The renderer signature is not pinned by the contracts; retry positionally
       Write-Log 'Renderer named-parameter call failed; retrying positionally' 'WARN'
       $r = Invoke-RendererInProcess -PositionalArgs @($TurnsPath, $PdfPath)
     }
@@ -1298,7 +1297,7 @@ function Invoke-Render {
     $r = Invoke-Tool -FilePath $script:PwshPath -Arguments $named -Tag 'render' -ComponentName 'PowerShell'
 
     if ($r.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $PdfPath)) {
-      # Track B's signature is not pinned by the contracts; retry positionally
+      # The renderer signature is not pinned by the contracts; retry positionally
       Write-Log 'Renderer named-parameter call failed; retrying positionally' 'WARN'
       $pos = [string[]]@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $RENDERER, $TurnsPath, $PdfPath)
       $r = Invoke-Tool -FilePath $script:PwshPath -Arguments $pos -Tag 'render2' -ComponentName 'PowerShell'

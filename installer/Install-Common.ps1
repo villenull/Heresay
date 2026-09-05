@@ -3,7 +3,7 @@
     Dot-sourced, not a module, so it works from a plain folder with no PSModulePath
     changes and no execution-policy machinery beyond -ExecutionPolicy Bypass.
 
-    Track C. User-scope only.
+    User-scope only.
 #>
 
 Set-StrictMode -Version Latest
@@ -96,9 +96,7 @@ function Write-TiFail {
 # --------------------------------------------------------------------- plumbing --
 
 function Get-TiFieldValue {
-    <# Track A owns contracts/download-manifest.json and may not use the exact field
-       names in installer/manifest.example.json. Accept any of a set of aliases rather
-       than hard-failing on a cosmetic difference. #>
+    <# Accept documented field aliases so older manifests remain readable. #>
     param(
         # NOT Mandatory on purpose: callers legitimately pass $null for an absent
         # sub-object (e.g. a component with no smokeTest block). [Parameter(Mandatory)]
@@ -140,8 +138,7 @@ function Format-TiBytes {
 # -------------------------------------------------------------------- downloads --
 
 function Get-TiHttpClient {
-    <# One client for the whole run. Uses the system proxy, so the corporate proxy and
-       its TLS inspection are honoured exactly as Invoke-WebRequest would. #>
+    <# One client for the whole run, using the current user's system proxy settings. #>
     if ($script:TI_HttpClient) { return $script:TI_HttpClient }
     $handler = [System.Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $true
@@ -417,8 +414,7 @@ function Write-TiJsonFile {
 
 function Resolve-TiDownloadManifest {
     <#
-        Normalise either Track A's contracts/download-manifest.json or the local
-        installer/manifest.example.json into one shape:
+        Normalise contracts/download-manifest.json into one shape:
           Name, Uri, FileName, SizeBytes, Sha256, ArchiveType, Target,
           StripComponents, SmokeExe, SmokeArgs, Optional
     #>
@@ -437,6 +433,11 @@ function Resolve-TiDownloadManifest {
             try { $file = Split-Path -Leaf ([uri]$uri).AbsolutePath } catch { $file = "$name.bin" }
         }
         $smoke = Get-TiFieldValue -Object $c -Names @('smokeTest', 'smoke', 'verify')
+        $optionalValue = Get-TiFieldValue -Object $c -Names @('optional') -Default $null
+        if ($null -eq $optionalValue) {
+            $requiredValue = Get-TiFieldValue -Object $c -Names @('required') -Default $true
+            $optionalValue = -not [bool]$requiredValue
+        }
         [void]$out.Add([pscustomobject]@{
             Name            = [string]$name
             Uri             = [string]$uri
@@ -448,12 +449,12 @@ function Resolve-TiDownloadManifest {
             StripComponents = [int](Get-TiFieldValue -Object $c -Names @('stripComponents', 'strip') -Default 0)
             SmokeExe        = [string](Get-TiFieldValue -Object $smoke -Names @('exe', 'path', 'command') -Default '')
             SmokeArgs       = @(Get-TiFieldValue -Object $smoke -Names @('args', 'arguments') -Default @())
-            Optional        = [bool](Get-TiFieldValue -Object $c -Names @('optional') -Default $false)
+            Optional        = [bool]$optionalValue
             # An install-time INPUT rather than a shipped artefact: downloaded, verified,
             # consumed by a derivation step, then deleted. The f16 weights the default
             # speech model is quantised from are the only current example.
             InstallTimeOnly = [bool](Get-TiFieldValue -Object $c -Names @('installTimeOnly', 'installTimeSourceOnly', 'consumeAtInstall') -Default $false)
-            # Track A's manifest maps individual archive members to exact destinations
+            # The manifest maps individual archive members to exact destinations
             # instead of naming one target directory. Carry it through verbatim.
             Extract         = @(Get-TiFieldValue -Object $c -Names @('extract', 'extractMap', 'map') -Default @())
         })
@@ -463,7 +464,7 @@ function Resolve-TiDownloadManifest {
 
 function Install-TiComponentFiles {
     <#
-        Applies Track A's per-file `extract` mapping from contracts/download-manifest.json.
+        Applies the per-file `extract` mapping from contracts/download-manifest.json.
         Each entry is either:
             { from, to }         a single member  -> an exact destination path
             { fromGlob, toDir }  a wildcard match -> a destination directory
@@ -565,7 +566,7 @@ function Install-TiComponentFiles {
 
 function Resolve-TiDerivedModels {
     <#
-        Normalise the derivedComponents array of Track A's download manifest, the same way
+        Normalise the derivedComponents array of the download manifest, the same way
         Resolve-TiDownloadManifest normalises components. Returns an empty array when the
         manifest has no such section, so an older manifest still installs.
 
@@ -755,98 +756,15 @@ function Invoke-TiQuantizeModel {
 }
 
 function New-TiSendToShortcuts {
-    <#
-        Creates the "Send to" entries and returns the .lnk paths so the caller can record
-        them in install-manifest.json.
-
-        Why Send To at all, rather than the Explorer context-menu verb: on this machine the
-        verb does not render. corporate endpoint-security products
-        hooked into Explorer,
-        and NO newly registered static verb appears - proven with five labelled probe verbs
-        registered under SystemFileAssociations\.ext, SystemFileAssociations\<PerceivedType>,
-        the file's ProgID and *\shell. None showed. An unhooked process building the same
-        IContextMenu with the same CMF_ITEMMENU|CMF_EXPLORE flags renders all of them.
-
-        Send To is a folder of .lnk files, not a registry verb, so it is unaffected.
-
-        These shortcuts live OUTSIDE the install root, which is exactly why they must be
-        recorded in the manifest: otherwise uninstall leaves dead menu entries behind, and
-        the IT package promises a provably complete removal.
-
-        THIS FUNCTION IS THE ONLY PLACE A SEND TO SHORTCUT MAY BE CREATED. Four things
-        went unrecorded on this project - two speech models, two app scripts, and a fifth
-        shortcut - every one of them because something was brought into existence by a
-        path that was not also the path that records it. Adding an entry here is cheap;
-        creating a .lnk anywhere else silently breaks the uninstall guarantee.
-    #>
+    <# Remove shortcuts created by versions that used the Windows Send To menu.
+       The function name and switches remain for installer command compatibility. #>
     param(
         [Parameter(Mandatory)][string] $InstallRoot,
         [switch] $Remove,
-        # Return just the entry names and create nothing. Exists so -WhatIf can preview
-        # the real list instead of keeping its own copy: it kept a hardcoded duplicate,
-        # which had already drifted to FOUR names while six were being installed - it was
-        # missing 'Save as PDF' and then 'Fastest transcript' too. A dry run that
-        # under-reports what it is about to do is worse than no dry run, because it is
-        # believed. Same failure family as the four unrecorded files this project has
-        # already had: two things that must agree, only one of them updated.
         [switch] $ListOnly
     )
 
     $sendTo = [Environment]::GetFolderPath('SendTo')
-    $icon   = (Join-Path $InstallRoot 'app\TranscribeIt.ico') + ',0'
-    # The shortcut targets wscript.exe running app\Run-Hidden.vbs, NOT pwsh.exe.
-    # pwsh is a console-subsystem app: its console host window exists from process
-    # creation until pwsh has parsed -WindowStyle Hidden - measured ~2.3 s of visible
-    # console flash on this machine under the endpoint-security process-creation tax.
-    # wscript is a GUI-subsystem host, so nothing ever appears; the shim starts pwsh
-    # hidden itself (see app\Run-Hidden.vbs for the flags and the quoting rules).
-    $wscript = 'C:\Windows\System32\wscript.exe'
-    $shim    = Join-Path $InstallRoot 'app\Run-Hidden.vbs'
-
-    # ONE entry, deliberately. User decision 2026-08-27: "we should ONLY have whatever
-    # is the fastest option". The other capabilities - large-model transcription with
-    # speakers (app\SendTo-Heresay.ps1 without -Model/-NoDiarization), Compress for
-    # Word (app\Compress-ForWord.ps1) and Save as PDF (app\Save-AsPdf.ps1) - remain
-    # installed and scriptable; only their menu entries are gone.
-    #
-    # Why tiny.en + -NoDiarization IS the fastest option - MEASURED 2026-08-27 on
-    # mains, 347.86 s fixture, whole pipeline end to end: 68.21 s = 5.10x realtime,
-    # against <1.45x for the old default entry. tiny.en against base.en, transcribe
-    # stage, quiet, power state recorded, two reps: 22.9 / 18.5 s against
-    # 30.7 / 35.1 s, about 1.6x. WER 3.38 % against base.en's 2.48 %, i.e. one wrong
-    # word in 30 rather than one in 40.
-    #
-    # This entry previously ran base.en because "tiny.en placed an entire real
-    # utterance 10.5 s BEFORE it was spoken, and this tool's transcripts carry
-    # timestamps that get quoted". BOTH halves of that were wrong. The timestamps
-    # are not quoted verbatim anywhere - the requirements owner confirmed slightly
-    # approximate timing is acceptable - and the 10.5 s figure was the single worst
-    # utterance quoted as if it were the model's behaviour. Measured systematically by
-    # test\perf\Measure-TimestampAccuracy.ps1: tiny.en's per-utterance onset error is
-    # median 0.76 s, p90 1.51 s across 28 matched utterances, with exactly ONE outlier
-    # at 10.50 s; 27 of 28 land inside 1.5 s. base.en is still a manifest component
-    # and still the best-TIMED model measured here (onset error median 0.19 s, max
-    # 0.65 s - better even than large-v3-turbo); set transcription.model in
-    # config.json to get it back when timing matters.
-    #
-    # -NoDiarization is load-bearing HERE in a way it was not on the old default
-    # entry: behind a large model diarization hides inside transcription and skipping
-    # it buys almost nothing, but these small models transcribe fast enough that
-    # diarization becomes the critical path - measured 80.36 s with speakers against
-    # 68.21 s without, on base.en.
-    #
-    # Neither base.en nor tiny.en fabricates. Every word the silence gate flagged was
-    # real, in-reference speech, verified against test\media\ground-truth.json. The
-    # "small models hallucinate" premise was superseded - see docs\benchmark-v2.md 4.
-    # No Send To entry as of 2026-08-28, on the maintainer's decision: the tool now
-    # offers a SINGLE menu entry, the top-level right-click verb 'Transcribe in PDF'
-    # (registered by Register-ShellVerbs.ps1). The Send To copy - which had been the
-    # reliable fallback for machines whose endpoint security hides the modern-menu
-    # verb - was a deliberate duplicate; the maintainer confirmed the verb renders on
-    # the target machines and preferred one entry over two. This function is kept, not
-    # deleted: it still SWEEPS the retired Send To names below so none linger on
-    # machines that had an earlier version, -SkipSendTo still works, and restoring the
-    # fallback is just adding an entry back here.
     $entries = @()
 
     # Names this function USED to install. Retired entries must be swept by their old
@@ -872,58 +790,11 @@ function New-TiSendToShortcuts {
     if ($ListOnly) { return @($entries | ForEach-Object { $_.Name }) }
 
     $paths = New-Object System.Collections.Generic.List[string]
-
-    # Sweep the retired names on BOTH the create and the -Remove path (this runs
-    # before the branch, so it covers both). The entry list shrank from six to one on
-    # 2026-08-27, and the survivor was then renamed from 'Transcribe in PDF' to
-    # 'Heresay - Transcribe in PDF' so it stops reading as a duplicate of the shell
-    # verb, which carries the old label and shows in the same classic menu. Every one
-    # of those .lnk files would otherwise sit in the Send To menu forever, because
-    # nothing that iterates $entries can see them any more. Not recorded in $paths:
-    # create-path callers record $paths in
-    # install-manifest.json as files they created, which these are not.
     foreach ($legacy in $legacyNames) {
         $lnk = Join-Path $sendTo ($legacy + '.lnk')
         if (Test-Path -LiteralPath $lnk) {
             try { Remove-Item -LiteralPath $lnk -Force -ErrorAction Stop } catch { }
         }
-    }
-
-    if ($Remove) {
-        foreach ($e in $entries) {
-            $lnk = Join-Path $sendTo ($e.Name + '.lnk')
-            if (Test-Path -LiteralPath $lnk) {
-                try { Remove-Item -LiteralPath $lnk -Force -ErrorAction Stop; [void]$paths.Add($lnk) } catch { }
-            }
-        }
-        return $paths.ToArray()
-    }
-
-    $shell = $null
-    try {
-        $shell = New-Object -ComObject WScript.Shell
-        foreach ($e in $entries) {
-            $lnk = Join-Path $sendTo ($e.Name + '.lnk')
-            $sc  = $shell.CreateShortcut($lnk)
-            $sc.TargetPath       = $wscript
-            # Shim path and script path both double-quoted: the install root can
-            # contain spaces. Extra rides along verbatim (leading space included).
-            # Explorer appends the selected file paths after all of this; the shim
-            # re-quotes every argument individually before handing them to pwsh, so
-            # paths with spaces survive (see Run-Hidden.vbs).
-            $sc.Arguments        = ('"{0}" "{1}\{2}"{3}' -f $shim, $InstallRoot, $e.Script, $e.Extra)
-            $sc.IconLocation     = $icon
-            $sc.Description      = $e.Desc
-            # Irrelevant for a GUI-subsystem target like wscript.exe, but keeps the
-            # flash minimized if anyone ever points this shortcut back at pwsh.
-            $sc.WindowStyle      = 7
-            $sc.WorkingDirectory = Join-Path $InstallRoot 'app'
-            $sc.Save()
-            [void]$paths.Add($lnk)
-        }
-    }
-    finally {
-        if ($shell) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
     }
 
     return $paths.ToArray()
@@ -1019,7 +890,7 @@ function Find-TiPwsh {
         (Join-Path $PSHOME 'pwsh.exe'),
         'C:\Program Files\PowerShell\7\pwsh.exe',
         (Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
-        # Portable per-user copy installed by installer\Bootstrap-Pwsh.ps1 when Program Files pwsh is absent (no admin on this fleet).
+        # Portable per-user copy installed when Program Files pwsh is absent.
         (Join-Path $env:LOCALAPPDATA 'Programs\PowerShell7\pwsh.exe')
     )
     foreach ($c in $candidates) { if ($c -and (Test-Path -LiteralPath $c)) { return $c } }
@@ -1163,7 +1034,7 @@ function Repair-TiConfigPaths {
         Make config.json's tool paths agree with where the installer actually put things.
 
     .DESCRIPTION
-        Track A's app\config.default.json points at its DEVELOPMENT layout:
+        The source app\config.default.json may point at the development layout:
 
             "ffmpeg":     "vendor/ffmpeg/ffmpeg.exe"
             "whisperCli": "vendor/whisper/whisper-cli.exe"
@@ -1179,7 +1050,7 @@ function Repair-TiConfigPaths {
         its job. Transcribe.ps1's Resolve-Vendor returns rooted paths unchanged, so
         writing absolute paths here is honoured directly.
 
-        Track A's value always wins if it already resolves. Only unresolvable entries are
+        An existing value wins if it resolves. Only unresolvable entries are
         remapped, and every remap is logged. app\config.default.json is never modified.
     #>
     param(

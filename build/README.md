@@ -29,7 +29,7 @@ pwsh -NoProfile -File build\Make-Distribution.ps1 -NoZip
 
 ## What ships
 
-`app\` (all files), `contracts\` (all files), `installer\`
+`app\` (all files), `contracts\` (all files), `THIRD_PARTY_NOTICES.md`, `installer\`
 (the five install scripts + `assets\` — never `tests\`), a generated `README.txt`
 for the recipient, a `dist-manifest.json` (build time, git commit, file count —
 so any distributed copy traces back to a commit), and optionally `download-cache\`.
@@ -51,3 +51,7 @@ Excluded everywhere: `vendor\`, `test\`, `docs\`, `.git`, `installer\tests`,
   warned about, not fatal — the installer downloads them at install time. Every
   bundled file is SHA-256 verified against the manifest at install time before use.
 - Requires PowerShell 7 (`pwsh`).
+
+Run `pwsh -NoProfile -File build\Test-Repository.ps1` before committing. It
+parses scripts and data files, checks manifest invariants, builds the package in a
+temporary directory, and inspects the ZIP for required and retired files.

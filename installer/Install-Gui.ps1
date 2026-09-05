@@ -73,7 +73,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 
 # Same trick as app\Progress.ps1: without an explicit AppUserModelID the taskbar
 # groups this window under powershell.exe and shows its icon, which looks like
-# something went wrong on a corporate laptop. A failure costs the identity only.
+# setup fails early. A failure costs only the optional display name.
 try {
     if (-not ('TranscribeIt.Setup.AppUserModelId' -as [Type])) {
         Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
@@ -626,8 +626,8 @@ $script:StageMap = @(
     @{ Prefix = 'Installing app files';                      Head = 'Installing the app';                  Pct = 82.0 }
     @{ Prefix = 'Registering the Explorer right-click verb'; Head = 'Adding the right-click menu';         Pct = 86.0 }
     @{ Prefix = 'Shell registration skipped';                Head = 'Adding the right-click menu';         Pct = 86.0 }
-    @{ Prefix = 'Creating the Send To entries';              Head = 'Finishing menu setup';                Pct = 90.0 }
-    @{ Prefix = 'Send To entries skipped';                   Head = 'Finishing menu setup';                Pct = 90.0 }
+    @{ Prefix = 'Removing retired Send To shortcuts';        Head = 'Finishing menu cleanup';              Pct = 90.0 }
+    @{ Prefix = 'Retired Send To shortcut cleanup skipped';  Head = 'Finishing menu cleanup';              Pct = 90.0 }
     @{ Prefix = 'Writing install-manifest.json';             Head = 'Recording what was installed';        Pct = 93.0 }
     @{ Prefix = 'Post-install smoke test';                   Head = 'Checking everything works';           Pct = 95.0 }
     @{ Prefix = 'Dry run - planned actions';                 Head = 'Dry run: listing planned actions';    Pct = 60.0 }

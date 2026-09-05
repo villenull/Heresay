@@ -94,7 +94,7 @@ Write-Step 'Verifying the source tree'
 $requiredAppFiles = @(
     'Transcribe-Entry.ps1', 'Register-ShellVerbs.ps1', 'Transcribe.ps1',
     'Merge-Diarization.ps1', 'Render-Pdf.ps1', 'template.html', 'Progress.ps1',
-    'config.default.json', 'SendTo-Heresay.ps1', 'Compress-ForWord.ps1', 'Run-Hidden.vbs',
+    'config.default.json', 'Run-Hidden.vbs',
     # Required in $appFiles too. Without it the package still downloads and verifies the
     # two naudio components, so a recipient gets the capture library and nothing that
     # loads it - a broken feature that installs cleanly. Fail the build instead.
@@ -116,6 +116,7 @@ $required = @(
     'installer\Uninstall-TranscribeIt.ps1'
     'installer\assets'
     'contracts\download-manifest.json'
+    'THIRD_PARTY_NOTICES.md'
 ) + @($requiredAppFiles | ForEach-Object { "app\$_" })
 
 $missing = @($required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_)) })
@@ -146,6 +147,7 @@ $null = New-Item -ItemType Directory -Path $stageRoot -Force
 # debris (*.bak*, *.log, logs\) is pruned from the STAGED copy, never from the repo.
 Copy-Item -LiteralPath (Join-Path $repoRoot 'app')       -Destination (Join-Path $stageRoot 'app') -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot 'contracts') -Destination (Join-Path $stageRoot 'contracts') -Recurse
+Copy-Item -LiteralPath (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md') -Destination $stageRoot
 
 # installer\ is picked file by file rather than copied-then-pruned: tests\ must never
 # ship, and a copy-then-delete would still ship it if the delete broke.
@@ -226,7 +228,7 @@ $readmeLines = @(
     ''
     'WHAT THIS IS'
     ''
-    '  Heresay is an internal tool that turns an audio or video recording into'
+    '  Heresay turns an audio or video recording into'
     '  a timestamped transcript PDF, fast. Everything runs on your own'
     '  computer: recordings are never uploaded anywhere.'
     ''
@@ -245,13 +247,11 @@ $readmeLines = @(
     'HOW TO USE IT'
     ''
     '  1. In File Explorer, right-click any recording (mp3, m4a, mp4, wav, ...).'
-    '  2. Choose "Send to", then "Heresay - Generate transcript (PDF)".'
+    '  2. Choose "Transcribe in PDF" (under "Show more options" if needed).'
     '  3. A progress window opens. When it finishes, the PDF is saved next to'
     '     the recording.'
     ''
-    '  The "Send to" menu also offers faster variants with lower accuracy, a'
-    '  "Solo recording" mode for a single speaker, and "Save as PDF" /'
-    '  "Compress for Word" helpers for existing documents.'
+    '  Choose a quality level from the Heresay home window before transcribing.'
     ''
     'HOW TO UNINSTALL'
     ''

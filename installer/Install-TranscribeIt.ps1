@@ -3,7 +3,7 @@
     Installs TranscribeIt for the current user. No admin rights, ever.
 
 .DESCRIPTION
-    Track C. Everything lands under %LOCALAPPDATA%\Programs\TranscribeIt and
+    Everything lands under %LOCALAPPDATA%\Programs\TranscribeIt and
     HKCU\Software\Classes. Nothing is written to HKLM or C:\Program Files, and no
     elevation is attempted at any point.
 
@@ -15,7 +15,7 @@
                      then delete the 1.55 GiB source. It is derived rather than downloaded
                      because no upstream publishes a q4_0 large-v3-turbo, and shipping a
                      file that exists only on one laptop is not an install.
-      4. app files - copy app\*, write app\config.json from Track A's defaults
+      4. app files - copy app\*, write app\config.json from the shipped defaults
       5. register  - the Explorer right-click verb
       6. manifest  - record every file and registry key created
       7. smoke test - prove the binaries actually run on this machine
@@ -37,10 +37,8 @@
     Install everything but leave the right-click menu alone.
 
 .PARAMETER SkipSendTo
-    Install everything but leave the four "Send to -> Heresay" entries alone. Use this
-    together with a scratch -InstallRoot to rehearse a full install without repointing the
-    real Send To entries - they live at a fixed path outside the install root, so a
-    rehearsal would otherwise aim the live menu at a temporary directory.
+    Skip cleanup of shortcuts created by releases that used the Windows Send To menu.
+    Current releases create only the Explorer right-click verb.
 
 .PARAMETER Repair
     Re-copy app files and re-register even if the install already looks complete.
@@ -57,7 +55,7 @@ param(
     [string] $SourceRoot,
     [string] $ManifestPath,
     [string] $DownloadCache,
-    [string] $Version = '2.0.0',
+    [string] $Version = '0.2.0',
     # 7, not 2. A clean install now peaks near 5.9 GB because the DEFAULT speech model is
     # quantised locally from 1.55 GiB of f16 weights that are deleted afterwards - see
     # section 3b. 2 GB was already marginal before that; it would now let an install start
@@ -65,11 +63,8 @@ param(
     [int]    $MinFreeGB = 7,
     [switch] $SkipDownloads,
     [switch] $SkipShellRegistration,
-    # The Send To entries are the only UI this tool actually has on this machine, and they
-    # live OUTSIDE the install root at a fixed path - so a rehearsal into a scratch
-    # InstallRoot would otherwise overwrite the four real ones and point them at a
-    # temporary directory. -RegistryRoot already exists to keep a rehearsal off the real
-    # right-click menu; this is the same idea for the menu that is actually used.
+    # Kept for command-line compatibility with earlier releases. When omitted, the
+    # installer removes retired Heresay shortcuts from the user's Send To folder.
     [switch] $SkipSendTo,
     [switch] $SkipSmokeTest,
     [switch] $Repair,
@@ -96,43 +91,34 @@ if (-not $dryRun) {
     Initialize-TiLog -Path (Join-Path ([System.IO.Path]::GetTempPath()) ("TranscribeIt-install-{0:yyyyMMdd-HHmmss}-{1}.log" -f (Get-Date), $PID))
 }
 
-# App scripts owned by the various tracks. Missing ones are reported, not fatal, so the
-# installer is usable before every track has landed.
+# App files copied into the per-user install.
 $appFiles = @(
-    @{ Name = 'Transcribe-Entry.ps1';    Owner = 'Track C'; Required = $true  }
-    @{ Name = 'Register-ShellVerbs.ps1'; Owner = 'Track C'; Required = $true  }
-    @{ Name = 'Transcribe.ps1';          Owner = 'Track A'; Required = $false }
-    @{ Name = 'Merge-Diarization.ps1';   Owner = 'Track A'; Required = $false }
-    @{ Name = 'Render-Pdf.ps1';          Owner = 'Track B'; Required = $false }
-    @{ Name = 'template.html';           Owner = 'Track B'; Required = $false }
-    @{ Name = 'Progress.ps1';            Owner = 'Track E'; Required = $false }
+    @{ Name = 'Transcribe-Entry.ps1';    Owner = 'app'; Required = $true  }
+    @{ Name = 'Register-ShellVerbs.ps1'; Owner = 'app'; Required = $true  }
+    @{ Name = 'Transcribe.ps1';          Owner = 'app'; Required = $false }
+    @{ Name = 'Merge-Diarization.ps1';   Owner = 'app'; Required = $false }
+    @{ Name = 'Render-Pdf.ps1';          Owner = 'app'; Required = $false }
+    @{ Name = 'template.html';           Owner = 'app'; Required = $false }
+    @{ Name = 'Progress.ps1';            Owner = 'app'; Required = $false }
     # The engine loads config.default.json as its REQUIRED base and overlays config.json
     # on top, so the base must ship too - otherwise the engine throws "Missing
     # config.default.json" on the very first run of an otherwise successful install.
-    @{ Name = 'config.default.json';     Owner = 'Track A'; Required = $true  }
-    # v2. The Send To wrapper is how the tool is actually reached on this machine -
-    # Explorer's context-menu verb is suppressed by the endpoint security hooks - so it
-    # is REQUIRED, not optional.
-    @{ Name = 'SendTo-Heresay.ps1';      Owner = 'v2';      Required = $true  }
-    @{ Name = 'Compress-ForWord.ps1';    Owner = 'v2';      Required = $false }
-    # v2. GUI-subsystem launch shim: the Send To .lnk targets wscript.exe running this
-    # file (a console-subsystem pwsh target flashes its console for ~2.3 s before
-    # -WindowStyle Hidden takes effect). REQUIRED because a missing shim leaves the
-    # menu entry pointing at nothing.
-    @{ Name = 'Run-Hidden.vbs';          Owner = 'v2';      Required = $true  }
+    @{ Name = 'config.default.json';     Owner = 'app'; Required = $true  }
+    # GUI-subsystem launch shim used by the Explorer shell verb.
+    @{ Name = 'Run-Hidden.vbs';          Owner = 'app'; Required = $true  }
     # v2. Records system audio (WASAPI loopback) plus the microphone through the NAudio
     # assemblies in bin\naudio\. REQUIRED: naudio-core and naudio-wasapi are required
     # components in contracts\download-manifest.json, so an install that fetches and
     # verifies 415627 bytes of capture library and then ships no script that loads it
     # has paid the whole cost of the feature and delivered none of it.
-    @{ Name = 'Record-Conversation.ps1'; Owner = 'v2';      Required = $true  }
+    @{ Name = 'Record-Conversation.ps1'; Owner = 'app'; Required = $true  }
     # Registers the recorder's launchers. Required: without it the recorder ships with
     # no way to start it, which installs cleanly and looks like a missing feature.
-    @{ Name = 'Register-RecordVerb.ps1';  Owner = 'v2';      Required = $true  }
+    @{ Name = 'Register-RecordVerb.ps1';  Owner = 'app'; Required = $true  }
     # The home window the "Heresay" Start Menu shortcut opens. Required because
     # Register-RecordVerb.ps1 creates that shortcut unconditionally; shipping the .lnk
     # without its target puts a dead entry in Start on an otherwise clean install.
-    @{ Name = 'Heresay-Home.ps1';         Owner = 'v2';      Required = $true  }
+    @{ Name = 'Heresay-Home.ps1';         Owner = 'app'; Required = $true  }
 )
 
 $layout = @('bin', 'bin\whisper', 'bin\sherpa', 'bin\ffmpeg', 'models', 'app', 'logs')
@@ -233,7 +219,7 @@ foreach ($f in $appFiles) {
 #
 # MEASURED FAILURE, 2026-08-27: a run logged "10 app file(s) copied" while two files
 # were not deployed at all - Progress.ps1 and Transcribe-Entry.ps1 stayed at their old
-# sizes, so Track E's ~300 MB-per-window leak fix was absent from the live install for
+# sizes, so a progress-window memory fix was absent from the live install for
 # about ninety minutes with no error anywhere.
 #
 # Cause: -SourceRoot is optional and defaults to Split-Path -Parent $PSScriptRoot, so
@@ -258,16 +244,9 @@ if ($srcAppFull.TrimEnd('\') -ieq $dstAppFull.TrimEnd('\')) {
         "-SourceRoot explicitly.")
 }
 
-# 2. It must actually look like a tree we can install from, not just contain an app\
-#    folder. TWO legitimate shapes exist:
-#      - the development tree (has test\ alongside app\, contracts\, installer\)
-#      - a DISTRIBUTION built by build\Make-Distribution.ps1, which deliberately ships
-#        WITHOUT test\ and identifies itself with dist-manifest.json at its root.
-#    The first shipped zip failed a real colleague's install here on 2026-08-28: the
-#    guard demanded test\ and the distribution correctly does not carry it. The guard
-#    had only ever been exercised against the dev tree. Both shapes carry everything
-#    the install actually reads (app\, contracts\, installer\); staleness is guarded
-#    separately by the post-copy hash verification, not by this shape check.
+# 2. It must carry the files the installer reads. A source checkout and a built
+#    distribution both have app\, contracts\, and installer\; only distributions add
+#    dist-manifest.json.
 $commonMarkers = @('contracts\download-manifest.json', 'installer\Install-TranscribeIt.ps1')
 $missingMarkers = @($commonMarkers | Where-Object { -not (Test-Path -LiteralPath (Join-Path $resolvedSource $_)) })
 $distManifestPath = Join-Path $resolvedSource 'dist-manifest.json'
@@ -288,43 +267,28 @@ elseif ($isDistribution) {
     }
     catch { [void]$warnings.Add("dist-manifest.json exists but could not be read: $($_.Exception.Message)") }
 }
-elseif (-not (Test-Path -LiteralPath (Join-Path $resolvedSource 'test'))) {
-    [void]$problems.Add(
-        "The source tree '$resolvedSource' looks like neither the development tree " +
-        "(no test\) nor a built distribution (no dist-manifest.json). Refusing to " +
-        "guess, because installing from the wrong tree fails silently. Pass " +
-        "-SourceRoot explicitly, or rebuild the package with build\Make-Distribution.ps1.")
-}
-
 $cfgDefault = Join-Path $srcApp 'config.default.json'
 if (Test-Path -LiteralPath $cfgDefault) {
-    try { $null = Read-TiJsonFile -Path $cfgDefault; Write-TiOk 'app\config.default.json present and valid JSON (Track A)' }
+    try { $null = Read-TiJsonFile -Path $cfgDefault; Write-TiOk 'app\config.default.json present and valid JSON' }
     catch { [void]$problems.Add("app\config.default.json exists but is not valid JSON: $($_.Exception.Message)") }
 }
-else { [void]$warnings.Add('app\config.default.json (Track A) is not present yet; a minimal config.json holding only the installer/shell settings will be written instead.') }
+else { [void]$warnings.Add('app\config.default.json is missing; a minimal config.json holding only installer and shell settings will be written instead.') }
 
 # --- download manifest --------------------------------------------------------
 $components = @()
 if (-not $SkipDownloads) {
     if (-not $ManifestPath) {
-        $candidates = @(
-            (Join-Path $SourceRoot 'contracts\download-manifest.json'),
-            (Join-Path $PSScriptRoot 'manifest.example.json')
-        )
+        $candidates = @((Join-Path $SourceRoot 'contracts\download-manifest.json'))
         $ManifestPath = @($candidates | Where-Object { Test-Path -LiteralPath $_ }) | Select-Object -First 1
     }
-    if (-not $ManifestPath) { [void]$problems.Add('No download manifest found. Expected contracts\download-manifest.json (Track A) or installer\manifest.example.json.') }
+    if (-not $ManifestPath) { [void]$problems.Add('No download manifest found. Expected contracts\download-manifest.json.') }
     else {
         try {
             $components = Resolve-TiDownloadManifest -Path $ManifestPath
-            $isPlaceholder = ($ManifestPath -like '*manifest.example.json')
             $total = ($components | Measure-Object -Property SizeBytes -Sum).Sum
             Write-TiOk "download manifest: $(Split-Path -Leaf $ManifestPath) - $($components.Count) component(s), $(Format-TiBytes $total)"
-            if ($isPlaceholder) {
-                [void]$warnings.Add("Using the PLACEHOLDER manifest installer\manifest.example.json. Its URLs point at example.invalid and its hashes are zeros, so real downloads will fail. Track A's contracts\download-manifest.json is what makes this work for real.")
-            }
             $noHash = @($components | Where-Object { -not $_.Sha256 })
-            if ($noHash.Count -and -not $isPlaceholder) {
+            if ($noHash.Count) {
                 [void]$problems.Add("These components have no SHA-256 in the manifest, so their downloads could not be verified: $(($noHash | ForEach-Object { $_.Name }) -join ', '). Refusing to install unverified binaries. Re-run with -Force to override.")
             }
     }
@@ -493,14 +457,10 @@ if ($dryRun) {
     Write-TiInfo "copy  $InstallRoot\Uninstall-TranscribeIt.ps1"
     Write-Host ''
     if ($SkipSendTo) {
-        Write-TiInfo '    leave the Send To entries alone (-SkipSendTo)'
+        Write-TiInfo '    leave retired Send To shortcuts alone (-SkipSendTo)'
     }
     else {
-        Write-TiInfo '    create Send To entries under %APPDATA%\Microsoft\Windows\SendTo:'
-        # Asked of the function that actually creates them, rather than restated here.
-        # This list WAS restated here and had drifted to four names while six were being
-        # installed, so the dry run quietly under-reported its own effects.
-        foreach ($n in @(New-TiSendToShortcuts -InstallRoot $InstallRoot -ListOnly)) { Write-TiInfo "        $n" }
+        Write-TiInfo '    remove retired Heresay shortcuts from %APPDATA%\Microsoft\Windows\SendTo'
     }
     Write-Host ''
     Write-Host 'Dry run complete. Nothing was changed. Re-run without -WhatIf to install.' -ForegroundColor Yellow
@@ -567,7 +527,7 @@ if (-not $SkipDownloads -and $components.Count) {
     }
 
         if (@($c.Extract).Count -gt 0) {
-            # Track A's manifest maps individual members to exact destinations, which is
+            # The manifest maps individual members to exact destinations, which is
             # more precise than "unpack this archive into that folder" - the whisper
             # archive, for instance, puts Release/*.dll into bin\whisper\.
             Write-TiInfo "        installing $(@($c.Extract).Count) mapped path(s)"
@@ -613,7 +573,7 @@ $manifest.components = $componentRecords.ToArray()
 # one extra download, no lasting footprint.
 #
 # Placed here, before app files and before anything user-visible is registered, so that a
-# failed derivation aborts without leaving dead Send To entries and without disturbing an
+# failed derivation aborts without leaving registered shell entries or disturbing an
 # existing working install.
 
 $derivedRecords = New-Object System.Collections.ArrayList
@@ -759,7 +719,7 @@ foreach ($f in $appFiles) {
     # Verify the copy landed, rather than trusting that Copy-Item not throwing means the
     # destination changed. These are small scripts, so hashing both sides is cheap - and a
     # deployment that reports success while leaving stale code in place is the failure that
-    # hid Track E's memory-leak fix from the live install for ninety minutes.
+    # can leave the live install on stale code while reporting success.
     $srcHash = Get-TiFileHash256 -Path $src
     $dstHash = Get-TiFileHash256 -Path $dst
     if ($srcHash -ne $dstHash) {
@@ -791,10 +751,10 @@ if (Test-Path -LiteralPath $srcIcon) {
 else { Write-TiWarn 'installer\assets\TranscribeIt.ico missing; the menu entry will fall back to the pwsh.exe icon.' }
 
 # --- config.json --------------------------------------------------------------
-# Track A owns app\config.default.json - it is READ, never rewritten. The runtime
+# app\config.default.json is read, never rewritten. The runtime
 # app\config.json is the installer's to produce, so the shell/queue sections that
-# Register-ShellVerbs.ps1 and Transcribe-Entry.ps1 read are merged in here if Track A's
-# defaults do not carry them. Merging only ADDS absent sections; anything Track A has
+# Register-ShellVerbs.ps1 and Transcribe-Entry.ps1 read are merged in here if the
+# defaults do not carry them. Merging only adds absent sections; any existing value
 # already specified wins.
 $dstCfg = Join-Path $dstApp 'config.json'
 
@@ -819,7 +779,7 @@ if (Test-Path -LiteralPath $cfgDefault) {
             $added += $pair.N
     }
     }
-    # Track A's defaults point at their vendor\ development layout; the install layout is
+    # Source defaults may point at the vendor\ development layout; the install layout is
     # bin\ + models\. Reconcile, or the engine cannot find its own tools at run time.
     $pathReport = Repair-TiConfigPaths -Config $cfgObj -InstallRoot $InstallRoot
     foreach ($m in $pathReport.Remapped) { Write-TiInfo "config paths.$($m.name): '$($m.from)' -> '$($m.to)'" }
@@ -829,22 +789,22 @@ if (Test-Path -LiteralPath $cfgDefault) {
     }
 
     Write-TiJsonFile -Object $cfgObj -Path $dstCfg
-    if ($added.Count) { Write-TiOk "app\config.json written from Track A defaults, with installer-owned section(s) merged in: $($added -join ', ')" }
-    else { Write-TiOk 'app\config.json written from Track A defaults (shell/queue sections already present)' }
+    if ($added.Count) { Write-TiOk "app\config.json written from shipped defaults, with installer sections merged in: $($added -join ', ')" }
+    else { Write-TiOk 'app\config.json written from shipped defaults (shell/queue sections already present)' }
     if (@($pathReport.Remapped).Count) {
         $manifest.notes = @($manifest.notes) + @(
-            "config.json tool paths remapped from Track A's vendor\ development layout to the install layout: " +
+            "config.json tool paths remapped from the vendor\ development layout to the install layout: " +
             (($pathReport.Remapped | ForEach-Object { "$($_.name)=$($_.to)" }) -join '; '))
     }
 }
 else {
     $fallback = [ordered]@{
-        '$comment' = 'Minimal config written by the installer because app/config.default.json (Track A) was not available. Only the installer-owned sections are present; engine settings will use their built-in defaults.'
+        '$comment' = 'Minimal config written because app/config.default.json was unavailable. Engine settings use their built-in defaults.'
         shell      = [pscustomobject]$shellDefaults
         queue      = [pscustomobject]$queueDefaults
     }
     Write-TiJsonFile -Object ([pscustomobject]$fallback) -Path $dstCfg
-    Write-TiWarn 'app\config.json written with installer defaults only (Track A config.default.json absent)'
+    Write-TiWarn 'app\config.json written with installer defaults only (config.default.json absent)'
 }
 # -Mutable, not a plain record: this file is generated just above and then tuned by the
 # user afterwards (queue.rewriteItemFields and performance.realTimeFactor are documented
@@ -864,36 +824,20 @@ foreach ($n in @('Uninstall-TranscribeIt.ps1', 'Install-Common.ps1')) {
 }
 Write-TiOk 'uninstaller staged in the install root'
 
+$noticesSource = Join-Path $SourceRoot 'THIRD_PARTY_NOTICES.md'
+if (Test-Path -LiteralPath $noticesSource) {
+    $noticesDestination = Join-Path $InstallRoot 'THIRD_PARTY_NOTICES.md'
+    Copy-Item -LiteralPath $noticesSource -Destination $noticesDestination -Force
+    Add-TiManifestFile -Manifest $manifest -Path $noticesDestination -Component 'notices'
+    Write-TiOk 'third-party notices installed'
+}
+else { Write-TiWarn 'THIRD_PARTY_NOTICES.md is missing from the package.' }
+
 # ============================================================= 5. SHELL VERB ==
 
-# HISTORY - all of it happened on 2026-08-27, and every flip was evidence-driven.
-# Future readers: do NOT "simplify" this stage back to pwsh-direct-with-defaults;
-# that exact configuration is the one that burned the user.
-#
-#   1. REGISTERED originally as 'Generate transcript (PDF)': pwsh.exe launched
-#      directly, engine DEFAULTS (large-v3-turbo + speaker separation). Believed
-#      harmless because the verb was thought suppressed on this fleet (Cortex XDR +
-#      BeyondTrust hook Explorer; five labelled probe verbs never showed).
-#   2. Half right: Windows 11's MODERN menu does suppress it, but the verb renders
-#      fine in the CLASSIC menu ("Show more options" / Shift+F10) - which is what
-#      the user actually uses. It burned him: his 60-minute screen recording took
-#      34 minutes (the Send To fast path does it in ~3.5), diarized system audio
-#      into 31 "speakers", and flashed a console for the ~2-3 s pwsh startup tax.
-#      RETIRED that morning (commit b28fc9f): this stage swept the keys and the
-#      smoke test failed on the verb's PRESENCE.
-#   3. REINSTATED the same evening at the user's explicit request - he wants the
-#      top-level entry and uses the classic menu - with all three defects fixed:
-#      label 'Transcribe in PDF', the FAST profile (-Model ggml-tiny.en-q8_0.bin
-#      -NoDiarization), and silent launch via wscript.exe -> Run-Hidden.vbs ->
-#      hidden pwsh.
-#
-# On the shim: the retirement called a registry verb chaining wscript -> VBS -> pwsh
-# a textbook malware-persistence signature this fleet's endpoint agent would flag.
-# That was asserted, never tested; the Send To entries have run the IDENTICAL
-# process chain on this machine all day with zero endpoint-security reaction. If the
-# agent ever suppresses or blocks the verb anyway, the fallback is to re-point the
-# command in Register-ShellVerbs.ps1 at pwsh.exe directly (accepting the console
-# flash), or to lean on Send To, which remains installed with the same fast profile.
+# The verb launches through wscript.exe and Run-Hidden.vbs so Explorer does not flash
+# a console while PowerShell starts. Quality is resolved from the user's settings by
+# Transcribe-Entry.ps1 rather than hard-coded in the registry command.
 if ($SkipShellRegistration) { Write-TiStep 'Shell registration skipped (-SkipShellRegistration)' }
 else {
     Write-TiStep 'Registering the Explorer right-click verb'
@@ -956,30 +900,23 @@ else {
 # =============================================================== 6. MANIFEST ==
 
 # ================================================================ 6b. SEND TO ==
-# The Send To entries render in BOTH the modern Win11 menu (which suppresses the
-# stage-5 verb) and the classic one, so they stay installed alongside the verb. They
-# live outside the install root, so they MUST be recorded in the manifest or uninstall
-# leaves dead menu entries and the IT package's "provably complete removal" claim is
-# false.
+# Earlier releases created Send To shortcuts. Current releases use only the Explorer
+# right-click verb, but keep this cleanup for upgrades.
 if ($SkipSendTo) {
-    Write-TiStep 'Send To entries skipped (-SkipSendTo)'
-    Write-TiInfo 'the four existing entries, wherever they point, are left exactly as they are'
+    Write-TiStep 'Retired Send To shortcut cleanup skipped (-SkipSendTo)'
 }
-elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Create Send To entries')) {
-    Write-TiStep 'Creating the Send To entries'
+elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Remove retired Heresay Send To shortcuts')) {
+    Write-TiStep 'Removing retired Send To shortcuts'
     try {
-        $lnks = @(New-TiSendToShortcuts -InstallRoot $InstallRoot)
-        foreach ($lnk in $lnks) { Add-TiManifestFile -Manifest $manifest -Path $lnk -Component 'sendto' }
-        Write-TiOk ("{0} Send To entr{1} created" -f $lnks.Count, $(if ($lnks.Count -eq 1) { 'y' } else { 'ies' }))
-        foreach ($lnk in $lnks) { Write-TiInfo ('        ' + [System.IO.Path]::GetFileNameWithoutExtension($lnk)) }
+        $null = New-TiSendToShortcuts -InstallRoot $InstallRoot
+        Write-TiOk 'retired Send To shortcuts removed'
     }
     catch {
-        Write-TiWarn "could not create the Send To entries: $($_.Exception.Message). The tool is installed; add them by re-running the installer."
+        Write-TiWarn "could not remove retired Send To shortcuts: $($_.Exception.Message)"
     }
 }
 else {
-    Write-TiStep 'Creating the Send To entries'
-    Write-TiInfo '    would sweep retired Heresay entries under %APPDATA%\Microsoft\Windows\SendTo; no current Send To entry is created'
+    Write-TiStep 'Removing retired Send To shortcuts'
 }
 
 Write-TiStep 'Writing install-manifest.json'
@@ -1147,12 +1084,9 @@ Write-Host "  logs        $InstallRoot\logs"
 Write-Host "  manifest    $manifestPath"
 Write-Host "  uninstall   pwsh -File `"$InstallRoot\Uninstall-TranscribeIt.ps1`""
 Write-Host ''
-if (-not $SkipShellRegistration -or -not $SkipSendTo) {
+if (-not $SkipShellRegistration) {
     if (-not $SkipShellRegistration) {
         Write-Host '  Right-click any audio or video file (classic menu / "Show more options"): "Transcribe in PDF".'
-    }
-    if (-not $SkipSendTo) {
-        Write-Host '  Also available under Send to -> "Transcribe in PDF".'
     }
     Write-Host ''
 }

@@ -3,7 +3,7 @@
     TranscribeIt progress window - native Windows taskbar progress, ETA and completion flash.
 
 .DESCRIPTION
-    Track E of TranscribeIt. Consumes the FROZEN progress contract described in
+    Consumes the progress contract described in
     contracts\CONTRACTS.md / contracts\progress.schema.json (JSON Lines, one compact
     object per line) and drives:
 
@@ -92,7 +92,6 @@
     pwsh -NoProfile -File .\app\Progress.ps1 -Path .\run.jsonl
 
 .NOTES
-    Owner: Track E. Files owned: app\Progress.ps1, test\replay-progress.ps1, test\progress\**
     Never writes to the registry (it only reads the light/dark theme preference).
 #>
 [CmdletBinding()]
@@ -845,7 +844,7 @@ $glyphHex = if ($systemUsesLightTheme) { '#FF2B2B2B' } else { '#FFF2F2F2' }
 # Window/taskbar icon, drawn at runtime so this track ships no binary assets: a
 # teal speech bubble with two knocked-out lines of text on a slate tile. Without it the
 # taskbar button shows a bare PowerShell prompt, which looks like something went wrong on
-# a corporate laptop. Carries no lettering, so it survives a rename. The same geometry is
+# Windows. Carries no lettering, so it survives a rename. The same geometry is
 # mirrored in installer\assets\New-AppMark.ps1 for the Explorer verb icon - change both.
 $appIcon = New-IconBitmap {
     param($dc, $size)

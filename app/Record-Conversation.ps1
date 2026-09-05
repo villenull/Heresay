@@ -135,7 +135,7 @@
       join the call a minute later, and every word of system audio lands a minute
       early against the microphone. So each leg compares bytes written against
       wall-clock elapsed and pads the shortfall with silence.
-    * ffmpeg's shipped LGPL build does have libmp3lame; app\Compress-ForWord.ps1
+    * ffmpeg's shipped LGPL build includes libmp3lame; the final recording encode
       already encodes MP3 with it.
 
     KNOWN LIMITATION: the ffmpeg mix and encode run on the UI thread, so the window
@@ -834,7 +834,7 @@ namespace Heresay.Rec
 
         /// <summary>
         /// Read the endpoint's mute flag NOW instead of trusting the reading taken at
-        /// Start(). On most laptops mute is a keyboard key - F4 on this fleet - so it can
+        /// Start(). On many laptops mute is a keyboard key, so it can
         /// be pressed at any point in a two-hour call, and a recording that went silent
         /// thirty seconds in is indistinguishable afterwards from one that was silent all
         /// along. Best-effort by design: an endpoint with no volume interface reports "not
@@ -1613,7 +1613,7 @@ function Complete-Recording {
 
         # Mono at the source rate: whisper wants 16 kHz mono anyway, so resampling
         # up for the sake of the MP3 and back down for the engine would only add
-        # loss. Same shape of encode as Compress-ForWord.ps1.
+        # loss. Encode once, after capture is complete.
         $mp3Args = @(
             '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
             '-i', $MixedWav, '-vn', '-ac', '1', '-c:a', 'libmp3lame',
