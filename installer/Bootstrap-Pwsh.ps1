@@ -14,8 +14,8 @@
     Exit code 0 means %LOCALAPPDATA%\Programs\PowerShell7\pwsh.exe exists and runs.
     Anything else is a failure, explained on the console in plain language.
 
-    Normally launched by "Install Heresay.cmd", which only calls it when no
-    PowerShell 7 is found on the machine (or when TI_FORCE_PWSH_BOOTSTRAP=1).
+    Normally launched by the Install-Heresay.vbs setup window when no PowerShell 7
+    is found on the machine.
 #>
 [CmdletBinding()]
 param()
@@ -254,7 +254,7 @@ try {
         Write-Step "  - ask IT to install PowerShell 7 for you, or"
         Write-Step "  - if winget works on your machine, run:"
         Write-Step "        winget install Microsoft.PowerShell"
-        Write-Step "then double-click 'Install Heresay.cmd' again."
+        Write-Step "then double-click 'Install-Heresay.vbs' again."
         exit 1
     }
 
@@ -274,6 +274,6 @@ catch {
     Write-Step "  - ask IT to install PowerShell 7 for you, or"
     Write-Step "  - if winget works on your machine, run:"
     Write-Step "        winget install Microsoft.PowerShell"
-    Write-Step "then double-click 'Install Heresay.cmd' again."
+    Write-Step "then double-click 'Install-Heresay.vbs' again."
     exit 1
 }

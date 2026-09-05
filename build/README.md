@@ -1,23 +1,23 @@
 # Building the Heresay distribution
 
-`Make-Distribution.ps1` packages this repo into a folder + zip that a non-technical
-colleague can install by double-clicking `Install Heresay.cmd`. Run it from anywhere;
-paths are resolved relative to the script.
+`Make-Installer-Vbs.ps1` builds the package and embeds it in the single release
+asset, `Install-Heresay.vbs`. Run it from anywhere; paths are resolved relative to
+the script.
 
 ## Usage
 
 ```powershell
-# Standard package (~small zip; installer downloads ~2.7 GB on first install)
-pwsh -NoProfile -File build\Make-Distribution.ps1
+# Build the release installer (downloads ~2.7 GB on first install)
+pwsh -NoProfile -File build\Make-Installer-Vbs.ps1
 
 # Offline package: bundles the pre-seeded component cache (~2.7 GB zip)
-pwsh -NoProfile -File build\Make-Distribution.ps1 -IncludeDownloadCache
+pwsh -NoProfile -File build\Make-Installer-Vbs.ps1 -IncludeDownloadCache
 
-# Folder only, no zip
+# Build or inspect only the intermediate package
 pwsh -NoProfile -File build\Make-Distribution.ps1 -NoZip
 ```
 
-## Parameters
+## Distribution parameters
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -29,8 +29,8 @@ pwsh -NoProfile -File build\Make-Distribution.ps1 -NoZip
 
 ## What ships
 
-`Install Heresay.cmd`, `app\` (all files), `contracts\` (all files), `installer\`
-(the four install scripts + `assets\` — never `tests\`), a generated `README.txt`
+`app\` (all files), `contracts\` (all files), `installer\`
+(the five install scripts + `assets\` — never `tests\`), a generated `README.txt`
 for the recipient, a `dist-manifest.json` (build time, git commit, file count —
 so any distributed copy traces back to a commit), and optionally `download-cache\`.
 
@@ -39,10 +39,12 @@ Excluded everywhere: `vendor\`, `test\`, `docs\`, `.git`, `installer\tests`,
 
 ## Notes
 
-- The build **fails loudly** if any required file is missing — including
-  `Install Heresay.cmd` and `installer\Bootstrap-Pwsh.ps1`, which are produced by
-  other work streams, and every app file the installer records in its
+- The build **fails loudly** if any required file is missing, including
+  `installer\Bootstrap-Pwsh.ps1` and every app file the installer records in its
   `files[]` manifest.
+- `Make-Installer-Vbs.ps1` preserves the auditable VBScript header, replaces only
+  its comment-only payload, and decodes the result again to prove it matches the
+  newly built ZIP byte for byte.
 - `-IncludeDownloadCache` copies **only** the files that
   `contracts\download-manifest.json` references (matched by its `filename` fields),
   not the whole cache directory. Manifest entries absent from the local cache are

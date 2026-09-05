@@ -6,9 +6,6 @@
 .DESCRIPTION
     Stages exactly what the double-click install path needs and nothing else:
 
-        Install Heresay.vbs     the entry point: opens the graphical installer
-                                with no console window (from the repo root)
-        Install Heresay.cmd     the console fallback entry point (repo root)
         app\                    every app file
         contracts\              every contract file
         installer\              the five install scripts plus assets\ - never tests\
@@ -110,11 +107,8 @@ $requiredAppFiles = @(
 )
 
 $required = @(
-    # Built by other tracks. A package without its entry points (the .vbs that opens
-    # the graphical installer, the .cmd console fallback) or the scripts they run is a
-    # folder of scripts a non-technical person cannot run, so their absence is fatal.
-    'Install Heresay.vbs'
-    'Install Heresay.cmd'
+    # The package is launched by the generated root Install-Heresay.vbs, which embeds
+    # this distribution and invokes Install-Gui.ps1 directly.
     'installer\Install-Gui.ps1'
     'installer\Bootstrap-Pwsh.ps1'
     'installer\Install-TranscribeIt.ps1'
@@ -147,9 +141,6 @@ if (Test-Path -LiteralPath $stageRoot) {
     Remove-Item -LiteralPath $stageRoot -Recurse -Force
 }
 $null = New-Item -ItemType Directory -Path $stageRoot -Force
-
-Copy-Item -LiteralPath (Join-Path $repoRoot 'Install Heresay.vbs') -Destination $stageRoot
-Copy-Item -LiteralPath (Join-Path $repoRoot 'Install Heresay.cmd') -Destination $stageRoot
 
 # app\ and contracts\ ship whole - the contract says every file - then development
 # debris (*.bak*, *.log, logs\) is pruned from the STAGED copy, never from the repo.
@@ -239,15 +230,11 @@ $readmeLines = @(
     '  a timestamped transcript PDF, fast. Everything runs on your own'
     '  computer: recordings are never uploaded anywhere.'
     ''
-    'HOW TO INSTALL'
+    'HOW THIS PACKAGE IS USED'
     ''
-    '  1. If you received this as a .zip file: right-click it, choose'
-    '     "Extract All...", and extract it anywhere (Downloads is fine).'
-    '     Do not skip this - it will not install from inside the zip.'
-    '  2. Open the extracted "Heresay-Setup" folder.'
-    '  3. Double-click "Install Heresay" - a setup window will open;'
-    '     click Install. (There are two "Install Heresay" files; either one'
-    '     opens the same setup window, so it does not matter which you pick.)'
+    '  This folder is the package embedded in Install-Heresay.vbs. The outer'
+    '  script extracts it to a temporary directory and launches the graphical'
+    '  installer\Install-Gui.ps1 entry point. It is not a second installer.'
     ''
     '  You do NOT need administrator rights.'
     "  $($downloadLine[0])"

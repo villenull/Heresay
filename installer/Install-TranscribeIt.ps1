@@ -175,7 +175,7 @@ else { [void]$problems.Add("Cannot write to '$programsDir'. TranscribeIt install
 # --- pwsh ---------------------------------------------------------------------
 $pwsh = Find-TiPwsh
 if ($pwsh) { Write-TiOk "PowerShell 7: $pwsh" }
-else { [void]$problems.Add('PowerShell 7 (pwsh.exe) was not found. The Explorer right-click command and the transcription engine both run under pwsh. Run Install Heresay.cmd, which sets PowerShell 7 up automatically, or install it yourself: winget install Microsoft.PowerShell') }
+else { [void]$problems.Add('PowerShell 7 (pwsh.exe) was not found. The Explorer right-click command and the transcription engine both run under pwsh. Run Install-Heresay.vbs, which sets PowerShell 7 up automatically, or install it yourself: winget install Microsoft.PowerShell') }
 
 # --- Edge (needed for PDF rendering) -----------------------------------------
 $edge = Find-TiEdge
@@ -979,7 +979,7 @@ elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Create Send To entries')) {
 }
 else {
     Write-TiStep 'Creating the Send To entries'
-    Write-TiInfo '    would create 4 Send To entries under %APPDATA%\Microsoft\Windows\SendTo'
+    Write-TiInfo '    would sweep retired Heresay entries under %APPDATA%\Microsoft\Windows\SendTo; no current Send To entry is created'
 }
 
 Write-TiStep 'Writing install-manifest.json'

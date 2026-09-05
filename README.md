@@ -1,6 +1,10 @@
 # Heresay
 
+![Right-click a recording, watch transcription progress, and get a PDF](docs/images/demo.gif)
+
 **Audio and video to speaker-labeled transcripts on your PC.**
+
+The name is *here + say*: your recordings stay here.
 
 Heresay turns meeting recordings into timestamped, speaker-labeled PDF transcripts. Everything runs on your own computer — no audio is ever uploaded anywhere.
 
@@ -54,6 +58,27 @@ The window also has a **Transcribe a file…** button that opens a file picker, 
 
 ---
 
+## What the installer does
+
+[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 927-line installer; read it before you run it.
+
+1. It decodes its comment-only, base64 package into a fresh `%TEMP%\Heresay-Setup-*` folder and starts `installer\Install-Gui.ps1`. The temporary folder and bootstrap `.ps1` may remain after setup closes.
+2. If PowerShell 7 is missing, it downloads the pinned Microsoft release from GitHub, verifies its SHA256, and installs it under `%LOCALAPPDATA%\Programs\PowerShell7`.
+3. It downloads approximately 2.7 GB of SHA256-pinned components: whisper.cpp, ffmpeg, and sherpa-onnx releases from GitHub; NAudio from NuGet; and speech, diarization, and VAD models from GitHub and Hugging Face. The exact versions, URLs, sizes, and hashes are in [`contracts/download-manifest.json`](contracts/download-manifest.json).
+4. It caches downloads under `%LOCALAPPDATA%\TranscribeIt\downloads` and installs the app, models, binaries, configuration, logs, manifest, and uninstaller under `%LOCALAPPDATA%\Programs\TranscribeIt`.
+5. It creates the per-user Start Menu shortcut and shell verbs under `HKCU\Software\Classes`: `SystemFileAssociations\.<extension>\shell\TranscribeIt` for media files, plus `DesktopBackground\Shell\HeresayRecordConversation` and `Directory\Background\shell\HeresayRecordConversation` for recording a conversation.
+6. Everything is per-user. It does not write to HKLM or `C:\Program Files`, request elevation, or require administrator rights.
+
+The installer is unsigned. That is why Windows may show a SmartScreen warning; reading the source and checking its hash are the available mitigations.
+
+Release notes publish SHA256 checksums for release assets. To verify the installer you downloaded:
+
+```powershell
+Get-FileHash .\Install-Heresay.vbs -Algorithm SHA256
+```
+
+---
+
 ## Install
 
 ### New install
@@ -62,15 +87,11 @@ The window also has a **Transcribe a file…** button that opens a file picker, 
 2. Double-click the file. A setup window opens after a few seconds while the package downloads.
 3. Click **Install**. The first install downloads approximately 2.7 GB of speech models — leave the window open until it finishes.
 
-> **SmartScreen warning**: if Windows shows a "Windows protected your PC" message, click **More info**, then **Run anyway**. Heresay is open source and installs only for your user account — no administrator rights are needed.
+> **SmartScreen warning**: the installer is unsigned, so Windows may show a "Windows protected your PC" message. Read the [installer source](Install-Heresay.vbs) first. If you choose to continue, click **More info**, then **Run anyway**.
 
 ### Upgrade from v0.1
 
 Run the new installer the same way. It detects the previous install and upgrades in place. Your right-click menus and Start Menu entry are updated automatically. Your recordings and transcripts in Downloads are not touched.
-
-### Manual install (advanced)
-
-The same Releases page also offers **`Heresay-Setup.zip`** for those who prefer to inspect the package before running. Extract the zip, open the `Heresay-Setup` folder, and double-click **Install Heresay**.
 
 ---
 
@@ -89,7 +110,7 @@ Your recordings and transcripts are never deleted by the uninstaller.
 | | |
 |---|---|
 | OS | Windows 10 or 11 (64-bit) |
-| Disk | ~6 GB free (models + app; the download cache is removed after install) |
+| Disk | 7 GB free during installation; approximately 4.4 GB retained for the app, models, and resumable download cache |
 | Internet | Required for the initial model download only |
 | Admin rights | Not needed — installs per user |
 
