@@ -73,7 +73,7 @@ If you installed a release before v0.2.2, uninstall it first, then install v0.2.
 
 ## What the installer does
 
-[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 859-line single-file development version of the installer. For an exact match to a downloaded release, use the tag-pinned source link in that release's notes.
+[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 861-line single-file development version of the installer. For an exact match to a downloaded release, use the tag-pinned source link in that release's notes.
 
 1. Extracts its embedded package to `%TEMP%\Heresay-Setup-*` and starts `installer\Install-Gui.ps1`.
 2. If needed, downloads a pinned PowerShell 7 release, verifies its SHA256, and installs it under `%LOCALAPPDATA%\Programs\PowerShell7`.
