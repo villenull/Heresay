@@ -104,6 +104,14 @@ Release checksums are published in the release notes.
 - No accounts, telemetry, or cloud processing.
 - Speech recognition uses [whisper.cpp](https://github.com/ggml-org/whisper.cpp); speaker separation uses [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx).
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+Committer, reviewer, and signing approver: [Diego Huyke (@villenull)](https://github.com/villenull).
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
 ## Uninstall
 
 Open Heresay from the Start Menu and click **Uninstall Heresay**. Recordings and transcripts are not removed.
