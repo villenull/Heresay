@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://transcribeit.local/contracts/progress.schema.json",
-  "title": "TranscribeIt progress event contract v1",
+  "$id": "https://heresay.local/contracts/progress.schema.json",
+  "title": "Heresay progress event contract v1",
   "description": "Emitted by the engine as JSON Lines and consumed by the progress UI. Unknown event types and fields are ignored for forward compatibility.",
 
   "$defs": {

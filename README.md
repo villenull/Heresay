@@ -69,16 +69,16 @@ Open Heresay from the Start Menu to choose a level. The setting applies to files
 
 > **SmartScreen:** the installer is unsigned, so Windows may warn you. Source review and the published checksum are the available mitigations. If you choose to continue, click **More info**, then **Run anyway**.
 
-Upgrading from v0.1 uses the same installer and preserves your recordings and transcripts.
+If you installed a release before v0.2.2, uninstall it first, then install v0.2.2. Your recordings and transcript PDFs are not removed.
 
 ## What the installer does
 
-[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 859-line development version of the installer. For an exact match to a downloaded release, use the tag-pinned source link in that release's notes.
+[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 859-line single-file development version of the installer. For an exact match to a downloaded release, use the tag-pinned source link in that release's notes.
 
 1. Extracts its embedded package to `%TEMP%\Heresay-Setup-*` and starts `installer\Install-Gui.ps1`.
 2. If needed, downloads a pinned PowerShell 7 release, verifies its SHA256, and installs it under `%LOCALAPPDATA%\Programs\PowerShell7`.
 3. Downloads SHA256-pinned binaries and models from GitHub, Hugging Face, and NuGet. Exact URLs and hashes are in [`contracts/download-manifest.json`](contracts/download-manifest.json).
-4. Caches downloads under `%LOCALAPPDATA%\TranscribeIt\downloads` and installs Heresay under `%LOCALAPPDATA%\Programs\TranscribeIt`.
+4. Caches downloads under `%LOCALAPPDATA%\Heresay\downloads` and installs Heresay under `%LOCALAPPDATA%\Programs\Heresay`.
 5. Adds per-user shell verbs under `HKCU\Software\Classes`; it does not request admin rights or write to HKLM.
 
 Verify the downloaded installer in PowerShell:
@@ -114,7 +114,7 @@ This program will not transfer any information to other networked systems unless
 
 ## Uninstall
 
-Open Heresay from the Start Menu and click **Uninstall Heresay**. Recordings and transcripts are not removed.
+Open Heresay from the Start Menu and click **Uninstall Heresay**. Recordings and transcripts are not removed. The uninstaller writes a diagnostic log to `%TEMP%\Heresay-uninstall-*.log`.
 
 ## License
 

@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Installs TranscribeIt for the current user. No admin rights, ever.
+    Installs Heresay for the current user. No admin rights, ever.
 
 .DESCRIPTION
-    Everything lands under %LOCALAPPDATA%\Programs\TranscribeIt and
+    Everything lands under %LOCALAPPDATA%\Programs\Heresay and
     HKCU\Software\Classes. Nothing is written to HKLM or C:\Program Files, and no
     elevation is attempted at any point.
 
@@ -23,7 +23,7 @@
     Run with -WhatIf first to see exactly what it would do.
 
 .PARAMETER InstallRoot
-    Defaults to %LOCALAPPDATA%\Programs\TranscribeIt.
+    Defaults to %LOCALAPPDATA%\Programs\Heresay.
 
 .PARAMETER RegistryRoot
     Where the shell verb is registered. Defaults to the live per-user class root. Pass
@@ -44,18 +44,18 @@
     Re-copy app files and re-register even if the install already looks complete.
 
 .EXAMPLE
-    .\Install-TranscribeIt.ps1 -WhatIf
+    .\Install-Heresay.ps1 -WhatIf
 .EXAMPLE
-    .\Install-TranscribeIt.ps1 -SkipDownloads -RegistryRoot 'HKCU:\Software\TranscribeIt-TEST\Classes'
+    .\Install-Heresay.ps1 -SkipDownloads -RegistryRoot 'HKCU:\Software\Heresay-TEST\Classes'
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
 param(
-    [string] $InstallRoot  = (Join-Path $env:LOCALAPPDATA 'Programs\TranscribeIt'),
+    [string] $InstallRoot  = (Join-Path $env:LOCALAPPDATA 'Programs\Heresay'),
     [string] $RegistryRoot = 'HKCU:\Software\Classes',
     [string] $SourceRoot,
     [string] $ManifestPath,
     [string] $DownloadCache,
-    [string] $Version = '0.2.1',
+    [string] $Version = '0.2.2',
     # 7, not 2. A clean install now peaks near 5.9 GB because the DEFAULT speech model is
     # quantised locally from 1.55 GiB of f16 weights that are deleted afterwards - see
     # section 3b. 2 GB was already marginal before that; it would now let an install start
@@ -76,19 +76,19 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'Install-Common.ps1')
-$script:TI_Quiet = [bool]$Quiet
+$script:HERESAY_Quiet = [bool]$Quiet
 
-$dryRun = -not $PSCmdlet.ShouldProcess($InstallRoot, 'Install TranscribeIt')
+$dryRun = -not $PSCmdlet.ShouldProcess($InstallRoot, 'Install Heresay')
 
 if (-not $SourceRoot) { $SourceRoot = Split-Path -Parent $PSScriptRoot }
-if (-not $DownloadCache) { $DownloadCache = Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads' }
+if (-not $DownloadCache) { $DownloadCache = Join-Path $env:LOCALAPPDATA 'Heresay\downloads' }
 
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
 $logPath = Join-Path $InstallRoot 'logs\install.log'
 # Log to a temp file until preflight passes, then relocate. Creating <root>\logs\ before
 # we know the install can proceed would leave debris behind on an abort.
 if (-not $dryRun) {
-    Initialize-TiLog -Path (Join-Path ([System.IO.Path]::GetTempPath()) ("TranscribeIt-install-{0:yyyyMMdd-HHmmss}-{1}.log" -f (Get-Date), $PID))
+    Initialize-HeresayLog -Path (Join-Path ([System.IO.Path]::GetTempPath()) ("Heresay-install-{0:yyyyMMdd-HHmmss}-{1}.log" -f (Get-Date), $PID))
 }
 
 # App files copied into the per-user install.
@@ -123,10 +123,10 @@ $appFiles = @(
 
 $layout = @('bin', 'bin\whisper', 'bin\sherpa', 'bin\ffmpeg', 'models', 'app', 'logs')
 
-$banner = if ($dryRun) { 'DRY RUN - nothing will be changed' } else { "Installing $script:TI_ProductName $Version" }
+$banner = if ($dryRun) { 'DRY RUN - nothing will be changed' } else { "Installing $script:HERESAY_ProductName $Version" }
 if (-not $Quiet) {
     Write-Host ''
-    Write-Host "  $script:TI_ProductName installer" -ForegroundColor White
+    Write-Host "  $script:HERESAY_ProductName installer" -ForegroundColor White
     Write-Host "  $banner" -ForegroundColor $(if ($dryRun) { 'Yellow' } else { 'White' })
     Write-Host "  target: $InstallRoot"
     Write-Host ''
@@ -134,7 +134,7 @@ if (-not $Quiet) {
 
 # =============================================================== 1. PREFLIGHT ==
 
-Write-TiStep 'Preflight checks'
+Write-HeresayStep 'Preflight checks'
 $problems = New-Object System.Collections.ArrayList
 $warnings = New-Object System.Collections.ArrayList
 
@@ -150,29 +150,29 @@ if ($null -ne $freeGB) {
     if ($freeGB -lt $MinFreeGB) {
         [void]$problems.Add("Not enough disk space on $driveLetter`: - $freeGB GB free, at least $MinFreeGB GB needed. A clean install peaks at about 5.9 GB: 2.7 GB of downloads held in the cache, 1.7 GB installed, and a transient 1.6 GB while the f16 source model sits on disk waiting to be quantised into the default model. It settles at 1.7 GB installed plus the 2.7 GB download cache, and the cache is removed by the uninstaller. Free up space and run this again.")
     }
-    else { Write-TiOk "disk: $freeGB GB free on $driveLetter`: (need $MinFreeGB GB)" }
+    else { Write-HeresayOk "disk: $freeGB GB free on $driveLetter`: (need $MinFreeGB GB)" }
 }
 
 # --- %LOCALAPPDATA% writable --------------------------------------------------
 $programsDir = Split-Path -Parent $InstallRoot
-if (Test-TiDirectoryWritable -Path $programsDir) { Write-TiOk "writable: $programsDir" }
-else { [void]$problems.Add("Cannot write to '$programsDir'. TranscribeIt installs per-user and needs write access there. If this folder is locked down by policy, the app cannot be installed without help from IT.") }
+if (Test-HeresayDirectoryWritable -Path $programsDir) { Write-HeresayOk "writable: $programsDir" }
+else { [void]$problems.Add("Cannot write to '$programsDir'. Heresay installs per-user and needs write access there. If this folder is locked down by policy, the app cannot be installed without help from IT.") }
 
 # --- pwsh ---------------------------------------------------------------------
-$pwsh = Find-TiPwsh
-if ($pwsh) { Write-TiOk "PowerShell 7: $pwsh" }
+$pwsh = Find-HeresayPwsh
+if ($pwsh) { Write-HeresayOk "PowerShell 7: $pwsh" }
 else { [void]$problems.Add('PowerShell 7 (pwsh.exe) was not found. The Explorer right-click command and the transcription engine both run under pwsh. Run Install-Heresay.vbs, which sets PowerShell 7 up automatically, or install it yourself: winget install Microsoft.PowerShell') }
 
 # --- Edge (needed for PDF rendering) -----------------------------------------
-$edge = Find-TiEdge
-if ($edge) { Write-TiOk "Microsoft Edge: $edge" }
-else { [void]$problems.Add('Microsoft Edge was not found. TranscribeIt renders the transcript PDF using Edge in headless mode, so it cannot produce a PDF without it.') }
+$edge = Find-HeresayEdge
+if ($edge) { Write-HeresayOk "Microsoft Edge: $edge" }
+else { [void]$problems.Add('Microsoft Edge was not found. Heresay renders the transcript PDF using Edge in headless mode, so it cannot produce a PDF without it.') }
 
 # --- .NET 8 Desktop runtime (needed for the WPF progress window) -------------
-$runtimes = Get-TiDotnetRuntimes
+$runtimes = Get-HeresayDotnetRuntimes
 $desktop8 = @($runtimes | Where-Object { $_.Framework -eq 'Microsoft.WindowsDesktop.App' -and $_.Version -like '8.*' })
 $core8    = @($runtimes | Where-Object { $_.Framework -eq 'Microsoft.NETCore.App' -and $_.Version -like '8.*' })
-if ($desktop8.Count) { Write-TiOk ".NET Desktop 8 runtime: $($desktop8[0].Version)" }
+if ($desktop8.Count) { Write-HeresayOk ".NET Desktop 8 runtime: $($desktop8[0].Version)" }
 else {
     [void]$problems.Add('The .NET 8 Desktop runtime (Microsoft.WindowsDesktop.App 8.x) was not found. The progress window is a WPF app and needs it. Install it with: winget install Microsoft.DotNet.DesktopRuntime.8')
 }
@@ -183,17 +183,17 @@ if (-not $SkipShellRegistration) {
     if ($RegistryRoot -match '^(HKLM|HKEY_LOCAL_MACHINE)') {
         [void]$problems.Add("RegistryRoot '$RegistryRoot' is machine-scope. This installer is user-scope only and will not attempt elevation.")
     }
-    elseif ($dryRun) { Write-TiInfo "registry: would write under $RegistryRoot (not tested in dry run)" }
-    elseif (Test-TiRegistryWritable -KeyPath $RegistryRoot) { Write-TiOk "writable: $RegistryRoot" }
+    elseif ($dryRun) { Write-HeresayInfo "registry: would write under $RegistryRoot (not tested in dry run)" }
+    elseif (Test-HeresayRegistryWritable -KeyPath $RegistryRoot) { Write-HeresayOk "writable: $RegistryRoot" }
     else { [void]$problems.Add("Cannot create keys under '$RegistryRoot'. The right-click menu entry cannot be registered.") }
 }
 
 # --- existing install ---------------------------------------------------------
-$existingManifestPath = Get-TiInstallManifestPath -InstallRoot $InstallRoot
+$existingManifestPath = Get-HeresayInstallManifestPath -InstallRoot $InstallRoot
 $existing = $null
 if (Test-Path -LiteralPath $existingManifestPath) {
     try {
-        $existing = Read-TiJsonFile -Path $existingManifestPath
+        $existing = Read-HeresayJsonFile -Path $existingManifestPath
         $msg = "An existing install is present: version $($existing.version), installed $($existing.installedUtc). This run will upgrade/repair it in place."
         [void]$warnings.Add($msg)
     }
@@ -230,7 +230,7 @@ foreach ($f in $appFiles) {
 # So the source tree is now proven rather than assumed, before anything is written.
 $resolvedSource = try { (Resolve-Path -LiteralPath $SourceRoot -ErrorAction Stop).ProviderPath }
                   catch { $SourceRoot }
-Write-TiInfo "source tree: $resolvedSource$(if ($PSBoundParameters.ContainsKey('SourceRoot')) { '' } else { '  (inferred from the installer location - pass -SourceRoot to be explicit)' })"
+Write-HeresayInfo "source tree: $resolvedSource$(if ($PSBoundParameters.ContainsKey('SourceRoot')) { '' } else { '  (inferred from the installer location - pass -SourceRoot to be explicit)' })"
 
 $srcAppFull = [System.IO.Path]::GetFullPath((Join-Path $resolvedSource 'app'))
 $dstAppFull = [System.IO.Path]::GetFullPath((Join-Path $InstallRoot 'app'))
@@ -247,7 +247,7 @@ if ($srcAppFull.TrimEnd('\') -ieq $dstAppFull.TrimEnd('\')) {
 # 2. It must carry the files the installer reads. A source checkout and a built
 #    distribution both have app\, contracts\, and installer\; only distributions add
 #    dist-manifest.json.
-$commonMarkers = @('contracts\download-manifest.json', 'installer\Install-TranscribeIt.ps1')
+$commonMarkers = @('contracts\download-manifest.json', 'installer\Install-Heresay.ps1')
 $missingMarkers = @($commonMarkers | Where-Object { -not (Test-Path -LiteralPath (Join-Path $resolvedSource $_)) })
 $distManifestPath = Join-Path $resolvedSource 'dist-manifest.json'
 $isDistribution = Test-Path -LiteralPath $distManifestPath
@@ -260,16 +260,16 @@ if ($missingMarkers.Count) {
 elseif ($isDistribution) {
     # Traceability: every distribution records the commit it was built from.
     try {
-        $dm = Read-TiJsonFile -Path $distManifestPath
-        $dmCommit = Get-TiFieldValue -Object $dm -Names @('gitCommit', 'commit') -Default '(unrecorded)'
-        $dmBuilt  = Get-TiFieldValue -Object $dm -Names @('builtUtc', 'built') -Default '(unrecorded)'
-        Write-TiOk "distribution package: built $dmBuilt from commit $dmCommit"
+        $dm = Read-HeresayJsonFile -Path $distManifestPath
+        $dmCommit = Get-HeresayFieldValue -Object $dm -Names @('gitCommit', 'commit') -Default '(unrecorded)'
+        $dmBuilt  = Get-HeresayFieldValue -Object $dm -Names @('builtUtc', 'built') -Default '(unrecorded)'
+        Write-HeresayOk "distribution package: built $dmBuilt from commit $dmCommit"
     }
     catch { [void]$warnings.Add("dist-manifest.json exists but could not be read: $($_.Exception.Message)") }
 }
 $cfgDefault = Join-Path $srcApp 'config.default.json'
 if (Test-Path -LiteralPath $cfgDefault) {
-    try { $null = Read-TiJsonFile -Path $cfgDefault; Write-TiOk 'app\config.default.json present and valid JSON' }
+    try { $null = Read-HeresayJsonFile -Path $cfgDefault; Write-HeresayOk 'app\config.default.json present and valid JSON' }
     catch { [void]$problems.Add("app\config.default.json exists but is not valid JSON: $($_.Exception.Message)") }
 }
 else { [void]$warnings.Add('app\config.default.json is missing; a minimal config.json holding only installer and shell settings will be written instead.') }
@@ -284,9 +284,9 @@ if (-not $SkipDownloads) {
     if (-not $ManifestPath) { [void]$problems.Add('No download manifest found. Expected contracts\download-manifest.json.') }
     else {
         try {
-            $components = Resolve-TiDownloadManifest -Path $ManifestPath
+            $components = Resolve-HeresayDownloadManifest -Path $ManifestPath
             $total = ($components | Measure-Object -Property SizeBytes -Sum).Sum
-            Write-TiOk "download manifest: $(Split-Path -Leaf $ManifestPath) - $($components.Count) component(s), $(Format-TiBytes $total)"
+            Write-HeresayOk "download manifest: $(Split-Path -Leaf $ManifestPath) - $($components.Count) component(s), $(Format-HeresayBytes $total)"
             $noHash = @($components | Where-Object { -not $_.Sha256 })
             if ($noHash.Count) {
                 [void]$problems.Add("These components have no SHA-256 in the manifest, so their downloads could not be verified: $(($noHash | ForEach-Object { $_.Name }) -join ', '). Refusing to install unverified binaries. Re-run with -Force to override.")
@@ -295,7 +295,7 @@ if (-not $SkipDownloads) {
         catch { [void]$problems.Add("Download manifest '$ManifestPath' could not be read: $($_.Exception.Message)") }
     }
 }
-else { Write-TiInfo 'downloads: skipped (-SkipDownloads)' }
+else { Write-HeresayInfo 'downloads: skipped (-SkipDownloads)' }
 
 # --- derived components -------------------------------------------------------
 # Not every component is downloaded. The DEFAULT speech model is quantised here from f16
@@ -305,7 +305,7 @@ $derived      = @()
 $derivedState = @{}
 if (-not $SkipDownloads -and $ManifestPath) {
     try {
-        $derived = Resolve-TiDerivedModels -Path $ManifestPath
+        $derived = Resolve-HeresayDerivedModels -Path $ManifestPath
         foreach ($d in $derived) {
             if (-not $d.Target)    { [void]$problems.Add("Derived component '$($d.Name)' has no target path in the manifest.") }
             if (-not $d.Tool)      { [void]$problems.Add("Derived component '$($d.Name)' names no tool to produce it.") }
@@ -316,7 +316,7 @@ if (-not $SkipDownloads -and $ManifestPath) {
             }
     }
         if ($derived.Count) {
-            Write-TiOk "derived at install time: $(($derived | ForEach-Object { $_.Name }) -join ', ')"
+            Write-HeresayOk "derived at install time: $(($derived | ForEach-Object { $_.Name }) -join ', ')"
     }
     }
     catch { [void]$problems.Add("The derivedComponents section of '$ManifestPath' could not be read: $($_.Exception.Message)") }
@@ -329,7 +329,7 @@ if (-not $SkipDownloads -and $ManifestPath) {
 if (-not $SkipDownloads -and (Test-Path -LiteralPath $cfgDefault)) {
     $wantModel = ''
     try {
-        $cfgPeek = Read-TiJsonFile -Path $cfgDefault
+        $cfgPeek = Read-HeresayJsonFile -Path $cfgDefault
         if ($cfgPeek.PSObject.Properties.Name -contains 'transcription' -and
             $cfgPeek.transcription.PSObject.Properties.Name -contains 'model') {
             $wantModel = [string]$cfgPeek.transcription.model
@@ -344,7 +344,7 @@ if (-not $SkipDownloads -and (Test-Path -LiteralPath $cfgDefault)) {
             # does not count as providing anything.
             if ($c.InstallTimeOnly) { continue }
             foreach ($e in @($c.Extract)) {
-                $to = Get-TiFieldValue -Object $e -Names @('to', 'dest', 'destination')
+                $to = Get-HeresayFieldValue -Object $e -Names @('to', 'dest', 'destination')
                 if ($to) { $provided.Add((Split-Path -Leaf ([string]$to))) }
             }
     }
@@ -353,15 +353,15 @@ if (-not $SkipDownloads -and (Test-Path -LiteralPath $cfgDefault)) {
         if ($provided -notcontains $wantModel) {
             [void]$problems.Add("app\config.default.json sets transcription.model = '$wantModel', but nothing in the download manifest installs or derives a file of that name. The install would report success and then fail on the first transcription. The manifest provides: $(($provided | Sort-Object -Unique) -join ', ').")
     }
-        else { Write-TiOk "default speech model '$wantModel' is provided by the manifest" }
+        else { Write-HeresayOk "default speech model '$wantModel' is provided by the manifest" }
     }
 }
 
 # --- verdict ------------------------------------------------------------------
-foreach ($w in $warnings) { Write-TiWarn $w }
+foreach ($w in $warnings) { Write-HeresayWarn $w }
 if ($problems.Count) {
-    foreach ($p in $problems) { Write-TiFail $p }
-    if ($Force) { Write-TiWarn "-Force given: continuing despite $($problems.Count) failed preflight check(s)." }
+    foreach ($p in $problems) { Write-HeresayFail $p }
+    if ($Force) { Write-HeresayWarn "-Force given: continuing despite $($problems.Count) failed preflight check(s)." }
     else {
         Write-Host ''
         Write-Host "Install aborted: $($problems.Count) preflight check(s) failed. Nothing was changed." -ForegroundColor Red
@@ -369,75 +369,75 @@ if ($problems.Count) {
         exit 1
     }
 }
-else { Write-TiOk 'all preflight checks passed' }
+else { Write-HeresayOk 'all preflight checks passed' }
 
 if ($dryRun) {
     Write-Host ''
-    Write-TiStep 'Dry run - planned actions'
-    Write-TiInfo "create directories under $InstallRoot`:"
-    foreach ($d in $layout) { Write-TiInfo "    $d\" }
+    Write-HeresayStep 'Dry run - planned actions'
+    Write-HeresayInfo "create directories under $InstallRoot`:"
+    foreach ($d in $layout) { Write-HeresayInfo "    $d\" }
     if (-not $SkipDownloads -and $components.Count) {
         # Which install-time-only sources would be skipped because what they produce is
         # already present? Report the same decision the real run will make.
         $planSkip = @{}
         foreach ($d in $derived) {
-            $st = Get-TiDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing
+            $st = Get-HeresayDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing
             $derivedState[$d.Name] = $st
             if ($st.Ok -and $d.SourceComponent) { $planSkip[$d.SourceComponent] = $true }
     }
-        Write-TiInfo 'download and verify:'
+        Write-HeresayInfo 'download and verify:'
         foreach ($c in $components) {
             # $c.Target is empty for the components that map individual archive members;
             # show where those members actually land instead of an empty arrow.
             $dest = $c.Target
             if (-not $dest -and @($c.Extract).Count) {
-                $tos = @(foreach ($e in @($c.Extract)) { Get-TiFieldValue -Object $e -Names @('to', 'toDir', 'destDir', 'dest') })
+                $tos = @(foreach ($e in @($c.Extract)) { Get-HeresayFieldValue -Object $e -Names @('to', 'toDir', 'destDir', 'dest') })
                 $tos = @($tos | Where-Object { $_ })
                 $dest = if (@($tos).Count -eq 1) { [string]$tos[0] } else { "$(@($tos).Count) mapped path(s)" }
             }
             $note = ''
             if ($c.InstallTimeOnly) { $note = '  [install-time source, deleted afterwards]' }
             if ($planSkip.ContainsKey($c.Name)) { $note = '  [SKIPPED - what it produces is already present and verified]' }
-            Write-TiInfo ("    {0,-42} {1,10}  -> {2}{3}" -f $c.Name, (Format-TiBytes $c.SizeBytes), $dest, $note)
+            Write-HeresayInfo ("    {0,-42} {1,10}  -> {2}{3}" -f $c.Name, (Format-HeresayBytes $c.SizeBytes), $dest, $note)
     }
     }
     if (-not $SkipDownloads -and $derived.Count) {
-        Write-TiInfo 'derive at install time (nothing upstream publishes these):'
+        Write-HeresayInfo 'derive at install time (nothing upstream publishes these):'
         foreach ($d in $derived) {
-            $st    = if ($derivedState.ContainsKey($d.Name)) { $derivedState[$d.Name] } else { Get-TiDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing }
+            $st    = if ($derivedState.ContainsKey($d.Name)) { $derivedState[$d.Name] } else { Get-HeresayDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing }
             $srcC  = @($components | Where-Object { $_.Name -eq $d.SourceComponent }) | Select-Object -First 1
-            $srcSz = if ($srcC) { Format-TiBytes $srcC.SizeBytes } else { 'unknown size' }
-            Write-TiInfo ("    {0,-42} {1,10}  -> {2}" -f $d.Name, (Format-TiBytes $d.SizeBytes), $d.Target)
+            $srcSz = if ($srcC) { Format-HeresayBytes $srcC.SizeBytes } else { 'unknown size' }
+            Write-HeresayInfo ("    {0,-42} {1,10}  -> {2}" -f $d.Name, (Format-HeresayBytes $d.SizeBytes), $d.Target)
             if ($st.Ok) {
-                Write-TiInfo "        SKIP: already present and correct - $($st.Reason)"
-                Write-TiInfo "        so '$($d.SourceComponent)' ($srcSz) would not be downloaded either"
+                Write-HeresayInfo "        SKIP: already present and correct - $($st.Reason)"
+                Write-HeresayInfo "        so '$($d.SourceComponent)' ($srcSz) would not be downloaded either"
             }
             else {
-                Write-TiInfo "        would derive because $($st.Reason)"
-                Write-TiInfo "        run: $($d.Tool) `"$($d.SourcePath)`" `"$($d.Target)`" $($d.QuantType)"
-                Write-TiInfo "        then check the size, compare against the pinned SHA-256, and record the measured hash"
+                Write-HeresayInfo "        would derive because $($st.Reason)"
+                Write-HeresayInfo "        run: $($d.Tool) `"$($d.SourcePath)`" `"$($d.Target)`" $($d.QuantType)"
+                Write-HeresayInfo "        then check the size, compare against the pinned SHA-256, and record the measured hash"
                 if ($d.DeleteSourceAfter) {
-                    Write-TiInfo "        then DELETE the $srcSz install-time source '$($d.SourcePath)' - installed footprint does not grow"
+                    Write-HeresayInfo "        then DELETE the $srcSz install-time source '$($d.SourcePath)' - installed footprint does not grow"
                 }
             }
     }
     }
-    Write-TiInfo 'copy app files:'
+    Write-HeresayInfo 'copy app files:'
     foreach ($f in $appFiles) {
         $state = if (Test-Path -LiteralPath (Join-Path $srcApp $f.Name)) { 'present' } else { 'MISSING - will skip' }
-        Write-TiInfo ("    {0,-26} {1,-8} {2}" -f $f.Name, $f.Owner, $state)
+        Write-HeresayInfo ("    {0,-26} {1,-8} {2}" -f $f.Name, $f.Owner, $state)
     }
-    Write-TiInfo "write $InstallRoot\app\config.json"
+    Write-HeresayInfo "write $InstallRoot\app\config.json"
     if (-not $SkipShellRegistration) {
         # -IconPath so the plan shows the icon the real run will use. Without it the plan
-        # falls back to the pwsh.exe icon, because app\TranscribeIt.ico does not exist in
+        # falls back to the pwsh.exe icon, because app\Heresay.ico does not exist in
         # an install root that has not been created yet.
-        $planIcon = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'assets\TranscribeIt.ico')) { "$InstallRoot\app\TranscribeIt.ico,0" } else { $null }
+        $planIcon = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'assets\Heresay.ico')) { "$InstallRoot\app\Heresay.ico,0" } else { $null }
         $plan = & (Join-Path $srcApp 'Register-ShellVerbs.ps1') -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -IconPath $planIcon -WhatIf -WarningAction SilentlyContinue
-        Write-TiInfo 'register shell verb:'
+        Write-HeresayInfo 'register shell verb:'
         foreach ($v in $plan.RegistryValues) {
             $n = if ($v.Name) { $v.Name } else { '(default)' }
-            Write-TiInfo ("    {0}  [{1}] = {2}" -f ($v.Key -replace '^HKCU:', 'HKCU'), $n, $v.Value)
+            Write-HeresayInfo ("    {0}  [{1}] = {2}" -f ($v.Key -replace '^HKCU:', 'HKCU'), $n, $v.Value)
     }
         # The recorder's launchers, asked of the script that creates them for the same
         # reason the Send To list is below: a preview that restates its own copy of what
@@ -446,21 +446,21 @@ if ($dryRun) {
         $recPlanScript = Join-Path $srcApp 'Register-RecordVerb.ps1'
         if (Test-Path -LiteralPath $recPlanScript) {
             $recPlan = & $recPlanScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -IconPath $planIcon -WhatIf -WarningAction SilentlyContinue
-            Write-TiInfo 'register the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut:'
-            Write-TiInfo ("    background verb on the desktop and folder backgrounds, label '{0}'" -f $recPlan.MenuText)
-            Write-TiInfo ("    command: {0}" -f $recPlan.Command)
-            Write-TiInfo '    Start Menu shortcut: Heresay.lnk (opens the Heresay home window)'
-            Write-TiInfo '    sweep the retired shortcut: Heresay - Transcribe new conversation.lnk'
+            Write-HeresayInfo 'register the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut:'
+            Write-HeresayInfo ("    background verb on the desktop and folder backgrounds, label '{0}'" -f $recPlan.MenuText)
+            Write-HeresayInfo ("    command: {0}" -f $recPlan.Command)
+            Write-HeresayInfo '    Start Menu shortcut: Heresay.lnk (opens the Heresay home window)'
+            Write-HeresayInfo '    sweep the retired shortcut: Heresay - Transcribe new conversation.lnk'
         }
     }
-    Write-TiInfo "write $InstallRoot\install-manifest.json"
-    Write-TiInfo "copy  $InstallRoot\Uninstall-TranscribeIt.ps1"
+    Write-HeresayInfo "write $InstallRoot\install-manifest.json"
+    Write-HeresayInfo "copy  $InstallRoot\Uninstall-Heresay.ps1"
     Write-Host ''
     if ($SkipSendTo) {
-        Write-TiInfo '    leave retired Send To shortcuts alone (-SkipSendTo)'
+        Write-HeresayInfo '    leave retired Send To shortcuts alone (-SkipSendTo)'
     }
     else {
-        Write-TiInfo '    remove retired Heresay shortcuts from %APPDATA%\Microsoft\Windows\SendTo'
+        Write-HeresayInfo '    remove retired Heresay shortcuts from %APPDATA%\Microsoft\Windows\SendTo'
     }
     Write-Host ''
     Write-Host 'Dry run complete. Nothing was changed. Re-run without -WhatIf to install.' -ForegroundColor Yellow
@@ -469,8 +469,8 @@ if ($dryRun) {
 
 # ================================================================ 2. DIRECTORIES ==
 
-Write-TiStep 'Creating the install layout'
-$manifest = New-TiInstallManifest -InstallRoot $InstallRoot -Version $Version
+Write-HeresayStep 'Creating the install layout'
+$manifest = New-HeresayInstallManifest -InstallRoot $InstallRoot -Version $Version
 $createdDirs = New-Object System.Collections.ArrayList
 foreach ($rel in @('') + $layout) {
     $d = if ($rel) { Join-Path $InstallRoot $rel } else { $InstallRoot }
@@ -480,16 +480,16 @@ foreach ($rel in @('') + $layout) {
     }
 }
 $manifest.directories = $createdDirs.ToArray()
-Write-TiOk "$($createdDirs.Count) directory/ies created ($($layout.Count) in the layout)"
+Write-HeresayOk "$($createdDirs.Count) directory/ies created ($($layout.Count) in the layout)"
 
 # The install root exists now, so the log can live where the operator expects it.
-Move-TiLog -To $logPath
+Move-HeresayLog -To $logPath
 
 # ================================================================== 3. DOWNLOADS ==
 
 $componentRecords = New-Object System.Collections.ArrayList
 if (-not $SkipDownloads -and $components.Count) {
-    Write-TiStep "Downloading components to $DownloadCache"
+    Write-HeresayStep "Downloading components to $DownloadCache"
     if (-not (Test-Path -LiteralPath $DownloadCache)) { New-Item -ItemType Directory -Path $DownloadCache -Force | Out-Null }
 
     # Decide up front which install-time-only sources are unnecessary. Without this, a
@@ -498,7 +498,7 @@ if (-not $SkipDownloads -and $components.Count) {
     # the download stage, not just the derivation.
     $skipSources = @{}
     foreach ($d in $derived) {
-        $st = Get-TiDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing
+        $st = Get-HeresayDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing
         $derivedState[$d.Name] = $st
         if ($st.Ok -and $d.SourceComponent) {
             $skipSources[$d.SourceComponent] = "$($d.Name) is already present and verified ($($st.Reason))"
@@ -508,18 +508,18 @@ if (-not $SkipDownloads -and $components.Count) {
     $i = 0
     foreach ($c in $components) {
         $i++
-        Write-TiInfo "[$i/$($components.Count)] $($c.Name) - $(Format-TiBytes $c.SizeBytes)"
+        Write-HeresayInfo "[$i/$($components.Count)] $($c.Name) - $(Format-HeresayBytes $c.SizeBytes)"
         if ($skipSources.ContainsKey($c.Name)) {
-            Write-TiOk "not needed: $($skipSources[$c.Name]); skipping this download entirely"
+            Write-HeresayOk "not needed: $($skipSources[$c.Name]); skipping this download entirely"
             continue
     }
         $outFile = Join-Path $DownloadCache $c.FileName
         try {
-            $dl = Invoke-TiDownload -Uri $c.Uri -OutFile $outFile -Sha256 $c.Sha256 -ExpectedBytes $c.SizeBytes
+            $dl = Invoke-HeresayDownload -Uri $c.Uri -OutFile $outFile -Sha256 $c.Sha256 -ExpectedBytes $c.SizeBytes
     }
         catch {
-            if ($c.Optional) { Write-TiWarn "optional component '$($c.Name)' failed: $($_.Exception.Message)"; continue }
-            Write-TiFail $_.Exception.Message
+            if ($c.Optional) { Write-HeresayWarn "optional component '$($c.Name)' failed: $($_.Exception.Message)"; continue }
+            Write-HeresayFail $_.Exception.Message
             Write-Host ''
             Write-Host "Install aborted while fetching '$($c.Name)'." -ForegroundColor Red
             Write-Host "Already-downloaded files are cached in $DownloadCache, so re-running resumes rather than starting over."
@@ -530,25 +530,25 @@ if (-not $SkipDownloads -and $components.Count) {
             # The manifest maps individual members to exact destinations, which is
             # more precise than "unpack this archive into that folder" - the whisper
             # archive, for instance, puts Release/*.dll into bin\whisper\.
-            Write-TiInfo "        installing $(@($c.Extract).Count) mapped path(s)"
-            $paths = Install-TiComponentFiles -SourcePath $dl.Path -InstallRoot $InstallRoot `
+            Write-HeresayInfo "        installing $(@($c.Extract).Count) mapped path(s)"
+            $paths = Install-HeresayComponentFiles -SourcePath $dl.Path -InstallRoot $InstallRoot `
                                               -Extract $c.Extract -ArchiveType $c.ArchiveType
             $added  = @($paths | ForEach-Object { Get-Item -LiteralPath $_ })
             $target = $InstallRoot
     }
         else {
             $target = if ($c.Target) { Join-Path $InstallRoot ($c.Target -replace '/', '\') } else { $InstallRoot }
-            Write-TiInfo "        extracting to $target"
+            Write-HeresayInfo "        extracting to $target"
             $before = @{}
             if (Test-Path -LiteralPath $target) {
                 Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $before[$_.FullName] = $true }
             }
-            Expand-TiArchive -ArchivePath $dl.Path -Destination $target -ArchiveType $c.ArchiveType -StripComponents $c.StripComponents
+            Expand-HeresayArchive -ArchivePath $dl.Path -Destination $target -ArchiveType $c.ArchiveType -StripComponents $c.StripComponents
 
             $added = @(Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue | Where-Object { -not $before.ContainsKey($_.FullName) })
     }
-        foreach ($f in $added) { Add-TiManifestFile -Manifest $manifest -Path $f.FullName -Component $c.Name -NoHash }
-        Write-TiOk "$($c.Name): $($added.Count) file(s) installed"
+        foreach ($f in $added) { Add-HeresayManifestFile -Manifest $manifest -Path $f.FullName -Component $c.Name -NoHash }
+        Write-HeresayOk "$($c.Name): $($added.Count) file(s) installed"
 
         [void]$componentRecords.Add([pscustomobject]@{
             name = $c.Name; fileName = $c.FileName; sha256 = $c.Sha256
@@ -558,7 +558,7 @@ if (-not $SkipDownloads -and $components.Count) {
         })
     }
 }
-else { Write-TiStep 'Downloads skipped'; Write-TiWarn 'bin\ and models\ will be empty; transcription will not run until they are populated.' }
+else { Write-HeresayStep 'Downloads skipped'; Write-HeresayWarn 'bin\ and models\ will be empty; transcription will not run until they are populated.' }
 $manifest.components = $componentRecords.ToArray()
 
 # ========================================================= 3b. DERIVED MODELS ==
@@ -578,14 +578,14 @@ $manifest.components = $componentRecords.ToArray()
 
 $derivedRecords = New-Object System.Collections.ArrayList
 if (-not $SkipDownloads -and $derived.Count) {
-    Write-TiStep 'Deriving the default speech model'
+    Write-HeresayStep 'Deriving the default speech model'
     foreach ($d in $derived) {
         $outPath  = Join-Path $InstallRoot ($d.Target -replace '/', '\')
         $srcPath  = if ($d.SourcePath) { Join-Path $InstallRoot ($d.SourcePath -replace '/', '\') } else { '' }
         $toolPath = if ($d.Tool)       { Join-Path $InstallRoot ($d.Tool       -replace '/', '\') } else { '' }
 
         $st = if ($derivedState.ContainsKey($d.Name)) { $derivedState[$d.Name] }
-              else { Get-TiDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing }
+              else { Get-HeresayDerivedModelState -Spec $d -InstallRoot $InstallRoot -PreviousManifest $existing }
 
         # Initialise before use: Set-StrictMode -Version Latest makes reading an unassigned
         # variable a terminating error, and this codebase has been bitten by that five times.
@@ -597,16 +597,16 @@ if (-not $SkipDownloads -and $derived.Count) {
         $outBytes   = 0L
 
         if ($st.Ok) {
-            Write-TiOk "$($d.Name): already correct, not re-derived - $($st.Reason)"
+            Write-HeresayOk "$($d.Name): already correct, not re-derived - $($st.Reason)"
             $hash     = $st.Sha256
             $outBytes = $st.SizeBytes
     }
         else {
-            if ($st.Present) { Write-TiWarn "$($d.Name) is present but $($st.Reason); re-deriving it." }
-            Write-TiInfo "$($d.Name): quantising to $($d.QuantType)"
-            Write-TiInfo "        $(Split-Path -Leaf $toolPath) `"$($d.SourcePath)`" `"$($d.Target)`" $($d.QuantType)"
+            if ($st.Present) { Write-HeresayWarn "$($d.Name) is present but $($st.Reason); re-deriving it." }
+            Write-HeresayInfo "$($d.Name): quantising to $($d.QuantType)"
+            Write-HeresayInfo "        $(Split-Path -Leaf $toolPath) `"$($d.SourcePath)`" `"$($d.Target)`" $($d.QuantType)"
 
-            $q = Invoke-TiQuantizeModel -ExePath $toolPath -SourcePath $srcPath -OutPath $outPath -QuantType $d.QuantType
+            $q = Invoke-HeresayQuantizeModel -ExePath $toolPath -SourcePath $srcPath -OutPath $outPath -QuantType $d.QuantType
             $secs = $q.Seconds
             if (-not $q.Ok) {
                 $failed  = $true
@@ -624,9 +624,9 @@ if (-not $SkipDownloads -and $derived.Count) {
                     $failMsg = "the derived file is $outBytes bytes but the manifest pins $($d.SizeBytes). That size is fixed by the model's tensor shapes, so this is not a rounding difference - the derivation did not produce the model the manifest describes. The bad output has been deleted."
                 }
                 else {
-                    $hash       = Get-TiFileHash256 -Path $outPath
+                    $hash       = Get-HeresayFileHash256 -Path $outPath
                     $wasDerived = $true
-                    Write-TiOk "$($d.Name) derived in $secs s: $(Format-TiBytes $outBytes)"
+                    Write-HeresayOk "$($d.Name) derived in $secs s: $(Format-HeresayBytes $outBytes)"
                 }
             }
     }
@@ -635,22 +635,22 @@ if (-not $SkipDownloads -and $derived.Count) {
         $matchesPinned = [bool]($d.Sha256 -and $hash -and $hash -eq $d.Sha256.ToLowerInvariant())
         if (-not $failed) {
             if ($matchesPinned) {
-                Write-TiOk "$($d.Name): SHA-256 matches the pinned hash - $hash"
+                Write-HeresayOk "$($d.Name): SHA-256 matches the pinned hash - $hash"
             }
             elseif (-not $d.Sha256) {
-                Write-TiWarn "$($d.Name): the manifest pins no SHA-256, so the result could not be compared against a reference. Measured $hash."
+                Write-HeresayWarn "$($d.Name): the manifest pins no SHA-256, so the result could not be compared against a reference. Measured $hash."
             }
             else {
-                Write-TiWarn "$($d.Name): SHA-256 does NOT match the hash pinned in the manifest."
-                Write-TiWarn "    pinned   : $($d.Sha256.ToLowerInvariant())"
-                Write-TiWarn "    measured : $hash"
-                Write-TiWarn "    size     : $outBytes bytes, which DOES match the pinned size."
-                Write-TiWarn '    Not treated as a failure, on purpose. whisper-quantize loads whichever ggml-cpu-*.dll'
-                Write-TiWarn '    matches this CPU, so byte-identical output on a different microarchitecture is likely'
-                Write-TiWarn '    but not guaranteed, and aborting here would make a clean install impossible on exactly'
-                Write-TiWarn '    the machines this step exists to support. The artefact is still accounted for: both of'
-                Write-TiWarn '    its inputs were SHA-256 verified against the manifest, and the size gate passed. The'
-                Write-TiWarn '    measured hash is recorded in install-manifest.json.'
+                Write-HeresayWarn "$($d.Name): SHA-256 does NOT match the hash pinned in the manifest."
+                Write-HeresayWarn "    pinned   : $($d.Sha256.ToLowerInvariant())"
+                Write-HeresayWarn "    measured : $hash"
+                Write-HeresayWarn "    size     : $outBytes bytes, which DOES match the pinned size."
+                Write-HeresayWarn '    Not treated as a failure, on purpose. whisper-quantize loads whichever ggml-cpu-*.dll'
+                Write-HeresayWarn '    matches this CPU, so byte-identical output on a different microarchitecture is likely'
+                Write-HeresayWarn '    but not guaranteed, and aborting here would make a clean install impossible on exactly'
+                Write-HeresayWarn '    the machines this step exists to support. The artefact is still accounted for: both of'
+                Write-HeresayWarn '    its inputs were SHA-256 verified against the manifest, and the size gate passed. The'
+                Write-HeresayWarn '    measured hash is recorded in install-manifest.json.'
             }
     }
 
@@ -665,12 +665,12 @@ if (-not $SkipDownloads -and $derived.Count) {
             # cannot find is an uninstaller nobody trusts.
             $lowerSrc = $srcPath.ToLowerInvariant()
             $manifest.files = @(@($manifest.files) | Where-Object { $_.path -and $_.path.ToLowerInvariant() -ne $lowerSrc })
-            Write-TiOk "install-time source deleted: $(Split-Path -Leaf $srcPath) - $(Format-TiBytes $srcBytes) reclaimed, installed footprint unchanged"
-            Write-TiInfo "        it stays in the download cache ($DownloadCache) so a future re-derive needs no re-download"
+            Write-HeresayOk "install-time source deleted: $(Split-Path -Leaf $srcPath) - $(Format-HeresayBytes $srcBytes) reclaimed, installed footprint unchanged"
+            Write-HeresayInfo "        it stays in the download cache ($DownloadCache) so a future re-derive needs no re-download"
     }
 
         if ($failed) {
-            Write-TiFail "could not derive $($d.Name): $failMsg"
+            Write-HeresayFail "could not derive $($d.Name): $failMsg"
             if (-not $d.Optional -and -not $Force) {
                 Write-Host ''
                 Write-Host "Install aborted: the default speech model could not be derived." -ForegroundColor Red
@@ -681,11 +681,11 @@ if (-not $SkipDownloads -and $derived.Count) {
                 Write-Host "  Downloads are cached in $DownloadCache, so a re-run resumes rather than starting over."
                 exit 4
             }
-            Write-TiWarn "-Force given: continuing without $($d.Name). Transcription will fail until it exists."
+            Write-HeresayWarn "-Force given: continuing without $($d.Name). Transcription will fail until it exists."
             continue
     }
 
-        Add-TiManifestFile -Manifest $manifest -Path $outPath -Component $d.Name -ForceHash
+        Add-HeresayManifestFile -Manifest $manifest -Path $outPath -Component $d.Name -ForceHash
         [void]$derivedRecords.Add([pscustomobject]@{
             name            = $d.Name
             path            = $outPath
@@ -702,17 +702,17 @@ if (-not $SkipDownloads -and $derived.Count) {
         })
     }
 }
-elseif ($derived.Count) { Write-TiStep 'Model derivation skipped (-SkipDownloads)' }
+elseif ($derived.Count) { Write-HeresayStep 'Model derivation skipped (-SkipDownloads)' }
 $manifest.derivedModels = $derivedRecords.ToArray()
 
 # =================================================================== 4. APP FILES ==
 
-Write-TiStep 'Installing app files'
+Write-HeresayStep 'Installing app files'
 $dstApp = Join-Path $InstallRoot 'app'
 $copied = 0
 foreach ($f in $appFiles) {
     $src = Join-Path $srcApp $f.Name
-    if (-not (Test-Path -LiteralPath $src)) { Write-TiWarn "skipped app\$($f.Name) - not built yet ($($f.Owner))"; continue }
+    if (-not (Test-Path -LiteralPath $src)) { Write-HeresayWarn "skipped app\$($f.Name) - not built yet ($($f.Owner))"; continue }
     $dst = Join-Path $dstApp $f.Name
     Copy-Item -LiteralPath $src -Destination $dst -Force
 
@@ -720,35 +720,35 @@ foreach ($f in $appFiles) {
     # destination changed. These are small scripts, so hashing both sides is cheap - and a
     # deployment that reports success while leaving stale code in place is the failure that
     # can leave the live install on stale code while reporting success.
-    $srcHash = Get-TiFileHash256 -Path $src
-    $dstHash = Get-TiFileHash256 -Path $dst
+    $srcHash = Get-HeresayFileHash256 -Path $src
+    $dstHash = Get-HeresayFileHash256 -Path $dst
     if ($srcHash -ne $dstHash) {
-        Write-TiFail ("app\{0} did not deploy: destination content differs from the source after copying. source {1}, destination {2}." -f $f.Name, $srcHash.Substring(0, 12), $dstHash.Substring(0, 12))
+        Write-HeresayFail ("app\{0} did not deploy: destination content differs from the source after copying. source {1}, destination {2}." -f $f.Name, $srcHash.Substring(0, 12), $dstHash.Substring(0, 12))
         exit 4
     }
 
-    Add-TiManifestFile -Manifest $manifest -Path $dst -Component 'app'
+    Add-HeresayManifestFile -Manifest $manifest -Path $dst -Component 'app'
     $copied++
 }
-Write-TiOk "$copied app file(s) copied"
+Write-HeresayOk "$copied app file(s) copied"
 
 # Any other files the tracks dropped in app\ that we do not know about by name.
 foreach ($extra in @(Get-ChildItem -LiteralPath $srcApp -File -ErrorAction SilentlyContinue |
                      Where-Object { $_.Name -notin @($appFiles.Name) -and $_.Name -ne 'config.default.json' })) {
     Copy-Item -LiteralPath $extra.FullName -Destination (Join-Path $dstApp $extra.Name) -Force
-    Add-TiManifestFile -Manifest $manifest -Path (Join-Path $dstApp $extra.Name) -Component 'app'
-    Write-TiInfo "also copied app\$($extra.Name)"
+    Add-HeresayManifestFile -Manifest $manifest -Path (Join-Path $dstApp $extra.Name) -Component 'app'
+    Write-HeresayInfo "also copied app\$($extra.Name)"
 }
 
 # --- icon ---------------------------------------------------------------------
-$srcIcon = Join-Path $PSScriptRoot 'assets\TranscribeIt.ico'
+$srcIcon = Join-Path $PSScriptRoot 'assets\Heresay.ico'
 if (Test-Path -LiteralPath $srcIcon) {
-    $dstIcon = Join-Path $dstApp 'TranscribeIt.ico'
+    $dstIcon = Join-Path $dstApp 'Heresay.ico'
     Copy-Item -LiteralPath $srcIcon -Destination $dstIcon -Force
-    Add-TiManifestFile -Manifest $manifest -Path $dstIcon -Component 'app'
-    Write-TiOk 'menu icon installed'
+    Add-HeresayManifestFile -Manifest $manifest -Path $dstIcon -Component 'app'
+    Write-HeresayOk 'menu icon installed'
 }
-else { Write-TiWarn 'installer\assets\TranscribeIt.ico missing; the menu entry will fall back to the pwsh.exe icon.' }
+else { Write-HeresayWarn 'installer\assets\Heresay.ico missing; the menu entry will fall back to the pwsh.exe icon.' }
 
 # --- config.json --------------------------------------------------------------
 # app\config.default.json is read, never rewritten. The runtime
@@ -771,7 +771,7 @@ $queueDefaults = [ordered]@{
 }
 
 if (Test-Path -LiteralPath $cfgDefault) {
-    $cfgObj = Read-TiJsonFile -Path $cfgDefault
+    $cfgObj = Read-HeresayJsonFile -Path $cfgDefault
     $added = @()
     foreach ($pair in @(@{ N = 'shell'; V = $shellDefaults }, @{ N = 'queue'; V = $queueDefaults })) {
         if ($cfgObj.PSObject.Properties.Name -notcontains $pair.N) {
@@ -781,16 +781,16 @@ if (Test-Path -LiteralPath $cfgDefault) {
     }
     # Source defaults may point at the vendor\ development layout; the install layout is
     # bin\ + models\. Reconcile, or the engine cannot find its own tools at run time.
-    $pathReport = Repair-TiConfigPaths -Config $cfgObj -InstallRoot $InstallRoot
-    foreach ($m in $pathReport.Remapped) { Write-TiInfo "config paths.$($m.name): '$($m.from)' -> '$($m.to)'" }
-    if (@($pathReport.Remapped).Count) { Write-TiOk "$(@($pathReport.Remapped).Count) tool path(s) remapped to the install layout" }
+    $pathReport = Repair-HeresayConfigPaths -Config $cfgObj -InstallRoot $InstallRoot
+    foreach ($m in $pathReport.Remapped) { Write-HeresayInfo "config paths.$($m.name): '$($m.from)' -> '$($m.to)'" }
+    if (@($pathReport.Remapped).Count) { Write-HeresayOk "$(@($pathReport.Remapped).Count) tool path(s) remapped to the install layout" }
     foreach ($u in $pathReport.Unresolved) {
-        Write-TiWarn "config paths.$($u.name) = '$($u.value)' does not exist under $InstallRoot and no replacement was found. The engine will fail on this tool until it is installed."
+        Write-HeresayWarn "config paths.$($u.name) = '$($u.value)' does not exist under $InstallRoot and no replacement was found. The engine will fail on this tool until it is installed."
     }
 
-    Write-TiJsonFile -Object $cfgObj -Path $dstCfg
-    if ($added.Count) { Write-TiOk "app\config.json written from shipped defaults, with installer sections merged in: $($added -join ', ')" }
-    else { Write-TiOk 'app\config.json written from shipped defaults (shell/queue sections already present)' }
+    Write-HeresayJsonFile -Object $cfgObj -Path $dstCfg
+    if ($added.Count) { Write-HeresayOk "app\config.json written from shipped defaults, with installer sections merged in: $($added -join ', ')" }
+    else { Write-HeresayOk 'app\config.json written from shipped defaults (shell/queue sections already present)' }
     if (@($pathReport.Remapped).Count) {
         $manifest.notes = @($manifest.notes) + @(
             "config.json tool paths remapped from the vendor\ development layout to the install layout: " +
@@ -803,8 +803,8 @@ else {
         shell      = [pscustomobject]$shellDefaults
         queue      = [pscustomobject]$queueDefaults
     }
-    Write-TiJsonFile -Object ([pscustomobject]$fallback) -Path $dstCfg
-    Write-TiWarn 'app\config.json written with installer defaults only (config.default.json absent)'
+    Write-HeresayJsonFile -Object ([pscustomobject]$fallback) -Path $dstCfg
+    Write-HeresayWarn 'app\config.json written with installer defaults only (config.default.json absent)'
 }
 # -Mutable, not a plain record: this file is generated just above and then tuned by the
 # user afterwards (queue.rewriteItemFields and performance.realTimeFactor are documented
@@ -812,35 +812,35 @@ else {
 # adjusted - it drifted within two hours of the first install for exactly that reason.
 # The flag says "expected to change" so a future integrity check can skip it knowingly
 # rather than the manifest merely happening not to carry a hash.
-Add-TiManifestFile -Manifest $manifest -Path $dstCfg -Component 'app' -Mutable
+Add-HeresayManifestFile -Manifest $manifest -Path $dstCfg -Component 'app' -Mutable
 
 # --- uninstaller --------------------------------------------------------------
-foreach ($n in @('Uninstall-TranscribeIt.ps1', 'Install-Common.ps1')) {
+foreach ($n in @('Uninstall-Heresay.ps1', 'Install-Common.ps1')) {
     $src = Join-Path $PSScriptRoot $n
-    if (-not (Test-Path -LiteralPath $src)) { Write-TiWarn "installer\$n not found; uninstall will need the source tree."; continue }
+    if (-not (Test-Path -LiteralPath $src)) { Write-HeresayWarn "installer\$n not found; uninstall will need the source tree."; continue }
     $dst = Join-Path $InstallRoot $n
     Copy-Item -LiteralPath $src -Destination $dst -Force
-    Add-TiManifestFile -Manifest $manifest -Path $dst -Component 'installer'
+    Add-HeresayManifestFile -Manifest $manifest -Path $dst -Component 'installer'
 }
-Write-TiOk 'uninstaller staged in the install root'
+Write-HeresayOk 'uninstaller staged in the install root'
 
 $noticesSource = Join-Path $SourceRoot 'THIRD_PARTY_NOTICES.md'
 if (Test-Path -LiteralPath $noticesSource) {
     $noticesDestination = Join-Path $InstallRoot 'THIRD_PARTY_NOTICES.md'
     Copy-Item -LiteralPath $noticesSource -Destination $noticesDestination -Force
-    Add-TiManifestFile -Manifest $manifest -Path $noticesDestination -Component 'notices'
-    Write-TiOk 'third-party notices installed'
+    Add-HeresayManifestFile -Manifest $manifest -Path $noticesDestination -Component 'notices'
+    Write-HeresayOk 'third-party notices installed'
 }
-else { Write-TiWarn 'THIRD_PARTY_NOTICES.md is missing from the package.' }
+else { Write-HeresayWarn 'THIRD_PARTY_NOTICES.md is missing from the package.' }
 
 # ============================================================= 5. SHELL VERB ==
 
 # The verb launches through wscript.exe and Run-Hidden.vbs so Explorer does not flash
 # a console while PowerShell starts. Quality is resolved from the user's settings by
 # Transcribe-Entry.ps1 rather than hard-coded in the registry command.
-if ($SkipShellRegistration) { Write-TiStep 'Shell registration skipped (-SkipShellRegistration)' }
+if ($SkipShellRegistration) { Write-HeresayStep 'Shell registration skipped (-SkipShellRegistration)' }
 else {
-    Write-TiStep 'Registering the Explorer right-click verb'
+    Write-HeresayStep 'Registering the Explorer right-click verb'
     $regScript = Join-Path $dstApp 'Register-ShellVerbs.ps1'
     if (-not (Test-Path -LiteralPath $regScript)) { $regScript = Join-Path $srcApp 'Register-ShellVerbs.ps1' }
     $reg = & $regScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -ConfigPath $dstCfg
@@ -855,8 +855,8 @@ else {
         "Shell verb '$($reg.VerbName)' ('$($reg.MenuText)') registered for perceived types [$($reg.PerceivedTypes -join ', ')] and extensions [$($reg.Extensions -join ', ')].",
         "MultiSelectModel=$($reg.MultiSelectModel): Explorer invokes the verb once per selected file; Transcribe-Entry.ps1 serialises them through a lockfile queue."
     )
-    Write-TiOk "verb registered on $($reg.PerceivedTypes.Count) perceived type(s) + $($reg.Extensions.Count) extension(s)"
-    Write-TiInfo "command: $($reg.Command)"
+    Write-HeresayOk "verb registered on $($reg.PerceivedTypes.Count) perceived type(s) + $($reg.Extensions.Count) extension(s)"
+    Write-HeresayInfo "command: $($reg.Command)"
 
     # The conversation recorder's background verb on the desktop and inside folders,
     # plus the single "Heresay" Start Menu shortcut, which opens the home window rather
@@ -873,13 +873,13 @@ else {
     $recScript = Join-Path $dstApp 'Register-RecordVerb.ps1'
     if (-not (Test-Path -LiteralPath $recScript)) { $recScript = Join-Path $srcApp 'Register-RecordVerb.ps1' }
     if (Test-Path -LiteralPath $recScript) {
-        Write-TiStep 'Registering the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut'
+        Write-HeresayStep 'Registering the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut'
         $rec = & $recScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot
-        if (-not $rec.Ok) { Write-TiWarn 'the recorder launchers reported a problem; see the messages above. The rest of the install is unaffected.' }
+        if (-not $rec.Ok) { Write-HeresayWarn 'the recorder launchers reported a problem; see the messages above. The rest of the install is unaffected.' }
         # The retired recorder shortcut is swept by the script on every create run, so an
         # upgrade ends with one Start entry. Say so when it happened, because the person
         # upgrading is the one who will otherwise wonder where the old entry went.
-        foreach ($gone in @($rec.Removed)) { Write-TiInfo "removed retired Start Menu shortcut: $gone" }
+        foreach ($gone in @($rec.Removed)) { Write-HeresayInfo "removed retired Start Menu shortcut: $gone" }
 
         $manifest.registryKeys = @($manifest.registryKeys) + @($rec.RegistryKeys)
         $manifest.verbKeys     = @($manifest.verbKeys)     + @($rec.VerbKeys)
@@ -887,14 +887,14 @@ else {
             [pscustomobject]@{ key = $_.Key; name = $_.Name; value = $_.Value; type = $_.Type }
         })
         foreach ($lnk in @($rec.ShortcutPaths)) {
-            Add-TiManifestFile -Manifest $manifest -Path $lnk -Component 'shortcut' -NoHash
+            Add-HeresayManifestFile -Manifest $manifest -Path $lnk -Component 'shortcut' -NoHash
         }
         $manifest.notes = @($manifest.notes) + @(
             "Recorder launchers: background verb '$($rec.Verb)' ('$($rec.MenuText)') on the desktop and folder backgrounds, plus $(@($rec.ShortcutPaths).Count) Start Menu shortcut(s) named 'Heresay' opening the home window. The Start Menu shortcut is recorded in files[] because it lives outside the install root."
         )
-        Write-TiOk "recorder verb and Start Menu shortcut registered ($(@($rec.VerbKeys).Count) background verb key(s), $(@($rec.ShortcutPaths).Count) Start Menu shortcut(s))"
+        Write-HeresayOk "recorder verb and Start Menu shortcut registered ($(@($rec.VerbKeys).Count) background verb key(s), $(@($rec.ShortcutPaths).Count) Start Menu shortcut(s))"
     }
-    else { Write-TiWarn 'app\Register-RecordVerb.ps1 not found; the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut were not created.' }
+    else { Write-HeresayWarn 'app\Register-RecordVerb.ps1 not found; the "Transcribe new conversation" verb and the "Heresay" Start Menu shortcut were not created.' }
 }
 
 # =============================================================== 6. MANIFEST ==
@@ -903,34 +903,34 @@ else {
 # Earlier releases created Send To shortcuts. Current releases use only the Explorer
 # right-click verb, but keep this cleanup for upgrades.
 if ($SkipSendTo) {
-    Write-TiStep 'Retired Send To shortcut cleanup skipped (-SkipSendTo)'
+    Write-HeresayStep 'Retired Send To shortcut cleanup skipped (-SkipSendTo)'
 }
 elseif ($PSCmdlet.ShouldProcess($InstallRoot, 'Remove retired Heresay Send To shortcuts')) {
-    Write-TiStep 'Removing retired Send To shortcuts'
+    Write-HeresayStep 'Removing retired Send To shortcuts'
     try {
-        $null = New-TiSendToShortcuts -InstallRoot $InstallRoot
-        Write-TiOk 'retired Send To shortcuts removed'
+        $null = New-HeresaySendToShortcuts -InstallRoot $InstallRoot
+        Write-HeresayOk 'retired Send To shortcuts removed'
     }
     catch {
-        Write-TiWarn "could not remove retired Send To shortcuts: $($_.Exception.Message)"
+        Write-HeresayWarn "could not remove retired Send To shortcuts: $($_.Exception.Message)"
     }
 }
 else {
-    Write-TiStep 'Removing retired Send To shortcuts'
+    Write-HeresayStep 'Removing retired Send To shortcuts'
 }
 
-Write-TiStep 'Writing install-manifest.json'
-$manifestPath = Get-TiInstallManifestPath -InstallRoot $InstallRoot
-Write-TiJsonFile -Object ([pscustomobject]$manifest) -Path $manifestPath
+Write-HeresayStep 'Writing install-manifest.json'
+$manifestPath = Get-HeresayInstallManifestPath -InstallRoot $InstallRoot
+Write-HeresayJsonFile -Object ([pscustomobject]$manifest) -Path $manifestPath
 $fileCount = @($manifest.files).Count
-Write-TiOk "$fileCount file(s), $(@($manifest.registryKeys).Count) registry key(s), $(@($manifest.registryValues).Count) registry value(s) recorded"
+Write-HeresayOk "$fileCount file(s), $(@($manifest.registryKeys).Count) registry key(s), $(@($manifest.registryValues).Count) registry value(s) recorded"
 
 # ============================================================ 7. SMOKE TESTS ==
 
 $smoke = New-Object System.Collections.ArrayList
-if ($SkipSmokeTest) { Write-TiStep 'Post-install smoke test skipped (-SkipSmokeTest)' }
+if ($SkipSmokeTest) { Write-HeresayStep 'Post-install smoke test skipped (-SkipSmokeTest)' }
 else {
-    Write-TiStep 'Post-install smoke test'
+    Write-HeresayStep 'Post-install smoke test'
 
     # --- binaries -------------------------------------------------------------
     $exeChecks = New-Object System.Collections.ArrayList
@@ -951,12 +951,12 @@ else {
     }
     }
 
-    if (-not $exeChecks.Count) { Write-TiWarn 'no binaries present to smoke test (downloads were skipped or the manifest declared none)' }
+    if (-not $exeChecks.Count) { Write-HeresayWarn 'no binaries present to smoke test (downloads were skipped or the manifest declared none)' }
     foreach ($chk in $exeChecks) {
-        $r = Invoke-TiSmokeTest -ExePath $chk.Exe -Arguments $chk.Args
+        $r = Invoke-HeresaySmokeTest -ExePath $chk.Exe -Arguments $chk.Args
         [void]$smoke.Add([pscustomobject]@{ name = $chk.Name; exe = $chk.Exe; ok = $r.Ok; exitCode = $r.ExitCode; firstLine = $r.FirstLine; error = $r.Error })
-        if ($r.Ok) { Write-TiOk "$($chk.Name) runs: $($r.FirstLine)" }
-        else { Write-TiFail "$($chk.Name) did NOT run ($(if ($r.Error) { $r.Error } else { "exit $($r.ExitCode), no output" })): $($chk.Exe)" }
+        if ($r.Ok) { Write-HeresayOk "$($chk.Name) runs: $($r.FirstLine)" }
+        else { Write-HeresayFail "$($chk.Name) did NOT run ($(if ($r.Error) { $r.Error } else { "exit $($r.ExitCode), no output" })): $($chk.Exe)" }
     }
 
     # --- models ---------------------------------------------------------------
@@ -967,20 +967,20 @@ else {
         foreach ($m in $expectedModels) {
             $f = Join-Path $modelDir $m.fileName
             if (-not (Test-Path -LiteralPath $f)) {
-                Write-TiFail "model missing: $($m.fileName)"
+                Write-HeresayFail "model missing: $($m.fileName)"
                 [void]$smoke.Add([pscustomobject]@{ name = $m.name; exe = $f; ok = $false; exitCode = $null; firstLine = ''; error = 'missing' })
                 continue
             }
             $actual = (Get-Item -LiteralPath $f).Length
             if ($m.sizeBytes -gt 0 -and $actual -ne $m.sizeBytes) {
-                Write-TiWarn "model $($m.fileName) is $(Format-TiBytes $actual), manifest said $(Format-TiBytes $m.sizeBytes)"
+                Write-HeresayWarn "model $($m.fileName) is $(Format-HeresayBytes $actual), manifest said $(Format-HeresayBytes $m.sizeBytes)"
             }
-            else { Write-TiOk "model $($m.fileName): $(Format-TiBytes $actual)" }
-            [void]$smoke.Add([pscustomobject]@{ name = $m.name; exe = $f; ok = $true; exitCode = $null; firstLine = "$(Format-TiBytes $actual)"; error = '' })
+            else { Write-HeresayOk "model $($m.fileName): $(Format-HeresayBytes $actual)" }
+            [void]$smoke.Add([pscustomobject]@{ name = $m.name; exe = $f; ok = $true; exitCode = $null; firstLine = "$(Format-HeresayBytes $actual)"; error = '' })
     }
     }
-    elseif ($models.Count) { Write-TiOk "$($models.Count) model file(s) present in models\" }
-    else { Write-TiWarn 'models\ is empty' }
+    elseif ($models.Count) { Write-HeresayOk "$($models.Count) model file(s) present in models\" }
+    else { Write-HeresayWarn 'models\ is empty' }
 
     # --- derived models -------------------------------------------------------
     foreach ($dr in $derivedRecords) {
@@ -988,10 +988,10 @@ else {
         if ($ok -and $dr.sizeBytes -gt 0) { $ok = ((Get-Item -LiteralPath $dr.path).Length -eq $dr.sizeBytes) }
         if ($ok) {
             $verdict = if ($dr.matchesPinned) { 'matches the pinned hash' } else { 'does NOT match the pinned hash - see the warning above' }
-            Write-TiOk "derived model $(Split-Path -Leaf $dr.path): $(Format-TiBytes $dr.sizeBytes), $verdict"
+            Write-HeresayOk "derived model $(Split-Path -Leaf $dr.path): $(Format-HeresayBytes $dr.sizeBytes), $verdict"
     }
-        else { Write-TiFail "derived model missing or the wrong size: $($dr.path)" }
-        [void]$smoke.Add([pscustomobject]@{ name = $dr.name; exe = $dr.path; ok = $ok; exitCode = $null; firstLine = "$(Format-TiBytes $dr.sizeBytes)"; error = $(if ($ok) { '' } else { 'missing or wrong size' }) })
+        else { Write-HeresayFail "derived model missing or the wrong size: $($dr.path)" }
+        [void]$smoke.Add([pscustomobject]@{ name = $dr.name; exe = $dr.path; ok = $ok; exitCode = $null; firstLine = "$(Format-HeresayBytes $dr.sizeBytes)"; error = $(if ($ok) { '' } else { 'missing or wrong size' }) })
     }
 
     # --- install-time sources really are gone ---------------------------------
@@ -1002,8 +1002,8 @@ else {
         if (-not $d.DeleteSourceAfter -or -not $d.SourcePath) { continue }
         $sp   = Join-Path $InstallRoot ($d.SourcePath -replace '/', '\')
         $gone = -not (Test-Path -LiteralPath $sp)
-        if ($gone) { Write-TiOk "install-time source gone from the install tree: $($d.SourcePath)" }
-        else { Write-TiFail "install-time source STILL PRESENT, inflating the install by $(Format-TiBytes (Get-Item -LiteralPath $sp).Length): $sp" }
+        if ($gone) { Write-HeresayOk "install-time source gone from the install tree: $($d.SourcePath)" }
+        else { Write-HeresayFail "install-time source STILL PRESENT, inflating the install by $(Format-HeresayBytes (Get-Item -LiteralPath $sp).Length): $sp" }
         [void]$smoke.Add([pscustomobject]@{ name = "$($d.SourceComponent)-consumed"; exe = $sp; ok = $gone; exitCode = $null; firstLine = ''; error = $(if ($gone) { '' } else { 'still present' }) })
     }
 
@@ -1014,7 +1014,7 @@ else {
     $cfgModelName = ''
     $cfgModelOk   = $false
     try {
-        $cfgLive = Read-TiJsonFile -Path $dstCfg
+        $cfgLive = Read-HeresayJsonFile -Path $dstCfg
         if ($cfgLive.PSObject.Properties.Name -contains 'transcription' -and
             $cfgLive.transcription.PSObject.Properties.Name -contains 'model') {
             $cfgModelName = [string]$cfgLive.transcription.model
@@ -1029,11 +1029,11 @@ else {
         if ($cfgModelName) {
             $mp = Join-Path $mdFull $cfgModelName
             $cfgModelOk = Test-Path -LiteralPath $mp -PathType Leaf
-            if ($cfgModelOk) { Write-TiOk "config.json's default speech model resolves: $mp" }
-            else { Write-TiFail "config.json sets transcription.model = '$cfgModelName' but it is NOT at $mp; the first transcription will fail" }
+            if ($cfgModelOk) { Write-HeresayOk "config.json's default speech model resolves: $mp" }
+            else { Write-HeresayFail "config.json sets transcription.model = '$cfgModelName' but it is NOT at $mp; the first transcription will fail" }
     }
     }
-    catch { Write-TiWarn "could not check config.json's default speech model: $($_.Exception.Message)" }
+    catch { Write-HeresayWarn "could not check config.json's default speech model: $($_.Exception.Message)" }
     if ($cfgModelName) {
         [void]$smoke.Add([pscustomobject]@{ name = 'default-model'; exe = $cfgModelName; ok = $cfgModelOk; exitCode = $null; firstLine = ''; error = $(if ($cfgModelOk) { '' } else { 'not installed' }) })
     }
@@ -1046,8 +1046,8 @@ else {
         $regScript = Join-Path $dstApp 'Register-ShellVerbs.ps1'
         $v = & $regScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -Verify
         foreach ($f in $v.Findings) {
-            if ($f.KeyPresent -and $f.CommandPresent) { Write-TiOk "verb present for $($f.Kind) '$($f.Subject)'" }
-            else { Write-TiFail "verb MISSING for $($f.Kind) '$($f.Subject)'" }
+            if ($f.KeyPresent -and $f.CommandPresent) { Write-HeresayOk "verb present for $($f.Kind) '$($f.Subject)'" }
+            else { Write-HeresayFail "verb MISSING for $($f.Kind) '$($f.Subject)'" }
         }
         [void]$smoke.Add([pscustomobject]@{ name = 'shell-verb'; exe = $RegistryRoot; ok = $v.Ok; exitCode = $null; firstLine = "$(@($v.Findings).Count) target(s)"; error = '' })
     }
@@ -1060,29 +1060,29 @@ else {
         [System.Management.Automation.Language.Parser]::ParseFile($entry, [ref]$tok, [ref]$errs) | Out-Null
         $entryOk = (@($errs).Count -eq 0)
     }
-    if ($entryOk) { Write-TiOk 'launcher app\Transcribe-Entry.ps1 parses cleanly' } else { Write-TiFail 'launcher app\Transcribe-Entry.ps1 is missing or has syntax errors' }
+    if ($entryOk) { Write-HeresayOk 'launcher app\Transcribe-Entry.ps1 parses cleanly' } else { Write-HeresayFail 'launcher app\Transcribe-Entry.ps1 is missing or has syntax errors' }
     [void]$smoke.Add([pscustomobject]@{ name = 'launcher'; exe = $entry; ok = $entryOk; exitCode = $null; firstLine = ''; error = '' })
 }
 
 $manifest.smokeTests = $smoke.ToArray()
-Write-TiJsonFile -Object ([pscustomobject]$manifest) -Path $manifestPath
+Write-HeresayJsonFile -Object ([pscustomobject]$manifest) -Path $manifestPath
 
 # ================================================================= 8. SUMMARY ==
 
 $failed = @($smoke | Where-Object { -not $_.ok })
 Write-Host ''
 if ($failed.Count -eq 0) {
-    Write-Host "  $script:TI_ProductName $Version installed." -ForegroundColor Green
+    Write-Host "  $script:HERESAY_ProductName $Version installed." -ForegroundColor Green
 }
 else {
-    Write-Host "  $script:TI_ProductName $Version installed, but $($failed.Count) smoke test(s) failed." -ForegroundColor Yellow
+    Write-Host "  $script:HERESAY_ProductName $Version installed, but $($failed.Count) smoke test(s) failed." -ForegroundColor Yellow
     foreach ($f in $failed) { Write-Host "    - $($f.name): $(if ($f.error) { $f.error } else { 'did not run' })" -ForegroundColor Yellow }
 }
 Write-Host ''
 Write-Host "  location    $InstallRoot"
 Write-Host "  logs        $InstallRoot\logs"
 Write-Host "  manifest    $manifestPath"
-Write-Host "  uninstall   pwsh -File `"$InstallRoot\Uninstall-TranscribeIt.ps1`""
+Write-Host "  uninstall   pwsh -File `"$InstallRoot\Uninstall-Heresay.ps1`""
 Write-Host ''
 if (-not $SkipShellRegistration) {
     if (-not $SkipShellRegistration) {
@@ -1090,6 +1090,6 @@ if (-not $SkipShellRegistration) {
     }
     Write-Host ''
 }
-Write-TiLog "install finished; smoke failures=$($failed.Count)"
+Write-HeresayLog "install finished; smoke failures=$($failed.Count)"
 if ($failed.Count) { exit 3 }
 exit 0

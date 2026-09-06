@@ -1,7 +1,7 @@
 {
   "_comment": "Engine defaults. The installer copies this to the install root as config.json; user edits there survive upgrades. Paths are relative to the install root.",
   "configVersion": 1,
-  "toolVersion": "0.2.1",
+  "toolVersion": "0.2.2",
 
   "paths": {
     "ffmpeg": "vendor/ffmpeg/ffmpeg.exe",
@@ -83,7 +83,7 @@
   },
 
   "quality": {
-    "_comment": "Read by app/Transcribe-Entry.ps1, NOT by the engine. The home window (Heresay-Home.ps1) saves one of these three level names to %LOCALAPPDATA%/TranscribeIt/settings.json, and both entry paths - the Explorer right-click verb and the conversation recorder - hand their file to Transcribe-Entry.ps1 with nothing but -Path. That script maps the saved level to a whisper model and a speaker-separation switch using this table and stores the result on the queue item, so the setting drives both paths from one place. These values mirror the built-in defaults inside Transcribe-Entry.ps1, which apply whenever this section is absent: a config.json carried over from an earlier install has no quality section, because user edits to config.json survive upgrades, so the built-ins are mandatory and this section is documentation plus an override. model is a filename inside paths.modelDir. A level whose model file is not installed falls back to the fastest level's model with a WARN in logs/entry.log rather than failing the file. The default level when settings.json is missing or unreadable is fastest, which is exactly the profile both paths hard-coded before the setting existed. An explicit -Model or -NoDiarization on the Transcribe-Entry command line bypasses this table entirely.",
+    "_comment": "Read by app/Transcribe-Entry.ps1, NOT by the engine. The home window (Heresay-Home.ps1) saves one of these three level names to %LOCALAPPDATA%/Heresay/settings.json, and both entry paths - the Explorer right-click verb and the conversation recorder - hand their file to Transcribe-Entry.ps1 with nothing but -Path. That script maps the saved level to a whisper model and a speaker-separation switch using this table and stores the result on the queue item, so the setting drives both paths from one place. These values mirror the built-in defaults inside Transcribe-Entry.ps1, which apply whenever this section is absent: a config.json carried over from an earlier install has no quality section, because user edits to config.json survive upgrades, so the built-ins are mandatory and this section is documentation plus an override. model is a filename inside paths.modelDir. A level whose model file is not installed falls back to the fastest level's model with a WARN in logs/entry.log rather than failing the file. The default level when settings.json is missing or unreadable is fastest, which is exactly the profile both paths hard-coded before the setting existed. An explicit -Model or -NoDiarization on the Transcribe-Entry command line bypasses this table entirely.",
     "fastest":  { "model": "ggml-tiny.en-q8_0.bin",        "diarization": false, "language": ""     },
     "moderate": { "model": "ggml-base.en-q8_0.bin",        "diarization": true,  "language": ""     },
     "thorough": { "model": "ggml-large-v3-turbo-q4_0.bin", "diarization": true,  "language": "auto" }

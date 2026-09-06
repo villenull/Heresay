@@ -28,7 +28,7 @@
 
 .PARAMETER DownloadCacheSource
     Where cache files are taken from. The default mirrors the installer's own
-    -DownloadCache default (installer\Install-TranscribeIt.ps1), so "install once on
+    -DownloadCache default (installer\Install-Heresay.ps1), so "install once on
     this machine, then build the offline package" needs no extra flags.
 
 .PARAMETER ZipName
@@ -51,7 +51,7 @@
 param(
     [string] $OutputDir = (Join-Path $PSScriptRoot 'dist'),
     [switch] $IncludeDownloadCache,
-    [string] $DownloadCacheSource = (Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads'),
+    [string] $DownloadCacheSource = (Join-Path $env:LOCALAPPDATA 'Heresay\downloads'),
     [string] $ZipName,
     [switch] $NoZip
 )
@@ -88,7 +88,7 @@ Write-Host ''
 Write-Step 'Verifying the source tree'
 
 # The app files the installer records in install-manifest.json files[]. The authority
-# is $appFiles in installer\Install-TranscribeIt.ps1 - keep this list in step with it.
+# is $appFiles in installer\Install-Heresay.ps1 - keep this list in step with it.
 # A file missing HERE ships a package whose installer warns or dies on the recipient's
 # machine, so the build dies here instead.
 $requiredAppFiles = @(
@@ -111,9 +111,9 @@ $required = @(
     # this distribution and invokes Install-Gui.ps1 directly.
     'installer\Install-Gui.ps1'
     'installer\Bootstrap-Pwsh.ps1'
-    'installer\Install-TranscribeIt.ps1'
+    'installer\Install-Heresay.ps1'
     'installer\Install-Common.ps1'
-    'installer\Uninstall-TranscribeIt.ps1'
+    'installer\Uninstall-Heresay.ps1'
     'installer\assets'
     'contracts\download-manifest.json'
     'THIRD_PARTY_NOTICES.md'
@@ -152,7 +152,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md') -Destinati
 # installer\ is picked file by file rather than copied-then-pruned: tests\ must never
 # ship, and a copy-then-delete would still ship it if the delete broke.
 $stageInstaller = (New-Item -ItemType Directory -Path (Join-Path $stageRoot 'installer') -Force).FullName
-foreach ($f in @('Install-Gui.ps1', 'Install-TranscribeIt.ps1', 'Install-Common.ps1', 'Uninstall-TranscribeIt.ps1', 'Bootstrap-Pwsh.ps1')) {
+foreach ($f in @('Install-Gui.ps1', 'Install-Heresay.ps1', 'Install-Common.ps1', 'Uninstall-Heresay.ps1', 'Bootstrap-Pwsh.ps1')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "installer\$f") -Destination $stageInstaller
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'installer\assets') -Destination (Join-Path $stageInstaller 'assets') -Recurse
@@ -255,18 +255,21 @@ $readmeLines = @(
     ''
     'HOW TO UNINSTALL'
     ''
-    '  Paste %LOCALAPPDATA%\Programs\TranscribeIt into the File Explorer'
-    '  address bar, right-click Uninstall-TranscribeIt.ps1, and choose'
-    '  "Run with PowerShell". This removes the tool and its menu entries;'
-    '  your recordings and PDFs are not touched.'
+    '  Open Heresay from the Start Menu and click "Uninstall Heresay".'
+    '  If the home window will not open, paste'
+    '  %LOCALAPPDATA%\Programs\Heresay into the File Explorer address bar,'
+    '  right-click Uninstall-Heresay.ps1, and choose "Run with PowerShell".'
+    '  This removes the tool and its menu entries; your recordings and PDFs'
+    '  are not touched. The uninstaller leaves a diagnostic log named'
+    '  Heresay-uninstall-*.log in %TEMP%.'
     ''
     'IF SOMETHING GOES WRONG'
     ''
     '  The installer and the app write logs to:'
-    '      %LOCALAPPDATA%\Programs\TranscribeIt\logs'
+    '      %LOCALAPPDATA%\Programs\Heresay\logs'
     '  (paste that into the File Explorer address bar). If the install failed'
     '  so early that this folder does not exist, look for a file named'
-    '  TranscribeIt-install-*.log in %TEMP% instead. Send the newest log to'
+    '  Heresay-install-*.log in %TEMP% instead. Send the newest log to'
     '  whoever gave you this package.'
     ''
 )

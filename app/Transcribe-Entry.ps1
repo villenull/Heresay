@@ -73,7 +73,7 @@
 .PARAMETER Quality
     Which of the three quality levels to transcribe at: fastest, moderate or
     thorough. The default 'auto' reads the level the home window saved to
-    %LOCALAPPDATA%\TranscribeIt\settings.json, and when that file is missing or
+    %LOCALAPPDATA%\Heresay\settings.json, and when that file is missing or
     holds something unrecognised the level is 'fastest'. The level is mapped to a
     model and a speaker-separation switch by the table in the "quality resolution"
     section below (overridable from config.json -> quality), and the result is what
@@ -130,8 +130,8 @@ $EntryLog = Join-Path $LogDir 'entry.log'
 # script's job - it is the only process that launches them both. The default matches
 # Progress.ps1's documented default so the two agree even if one is started by hand.
 if (-not $CancelFile) {
-    $CancelFile = if ($env:TRANSCRIBEIT_CANCEL_FILE) { $env:TRANSCRIBEIT_CANCEL_FILE }
-                  else { Join-Path $env:LOCALAPPDATA 'TranscribeIt\run\cancel.flag' }
+    $CancelFile = if ($env:HERESAY_CANCEL_FILE) { $env:HERESAY_CANCEL_FILE }
+                  else { Join-Path $env:LOCALAPPDATA 'Heresay\run\cancel.flag' }
 }
 
 # Defaults; overridable from config.json -> queue.*
@@ -166,7 +166,7 @@ $QualityTable = [ordered]@{
     thorough = @{ model = 'ggml-large-v3-turbo-q4_0.bin'; diarization = $true;  language = 'auto' }
 }
 $QualityFallbackLevel = 'fastest'
-if (-not $SettingsPath) { $SettingsPath = Join-Path $env:LOCALAPPDATA 'TranscribeIt\settings.json' }
+if (-not $SettingsPath) { $SettingsPath = Join-Path $env:LOCALAPPDATA 'Heresay\settings.json' }
 # Where model files live, used only to pre-flight the resolved model so a level whose
 # model is missing degrades to the fastest one instead of failing the item. Filled in
 # from config.json -> paths.modelDir below, with the installed and development layouts
@@ -575,7 +575,7 @@ function Invoke-Engine {
         $summary.Error = "Transcription engine not installed: $EngineScript"
         Write-EntryLog $summary.Error 'ERROR'
         Write-EventObject @{
-            type = 'error'; stage = 'error'; message = 'TranscribeIt is not fully installed - the transcription engine is missing. Re-run the installer.'
+            type = 'error'; stage = 'error'; message = 'Heresay is not fully installed - the transcription engine is missing. Re-run the installer.'
             logPath = $EntryLog; fatal = $false; itemIndex = $ItemIndex; itemTotal = $ItemTotal
         }
         return [pscustomobject]$summary
@@ -712,15 +712,15 @@ function Start-ProgressUi {
         if ($declared -contains 'EnginePid') { $argList += @('-EnginePid', "$PID") }
         # Same pid, second job: the UI's lifetime watchdog polls it so a finished window
         # cannot stay resident for ever holding ~300 MB. See Progress.ps1 section 0b.
-        # Withheld when TRANSCRIBEIT_UI_LINGER_SECONDS is set: an explicit argument beats
+        # Withheld when HERESAY_UI_LINGER_SECONDS is set: an explicit argument beats
         # the UI's own env fallback, so passing it unconditionally would make that variable
         # a dead knob on the one path that matters. Config is the default, env the override.
         if (($declared -contains 'LingerSeconds') -and
-            [string]::IsNullOrWhiteSpace($env:TRANSCRIBEIT_UI_LINGER_SECONDS)) {
+            [string]::IsNullOrWhiteSpace($env:HERESAY_UI_LINGER_SECONDS)) {
             $argList += @('-LingerSeconds', "$([int]$cfg['uiLingerSeconds'])")
         }
         if (($declared -contains 'AcknowledgedIdleSeconds') -and
-            [string]::IsNullOrWhiteSpace($env:TRANSCRIBEIT_UI_IDLE_SECONDS)) {
+            [string]::IsNullOrWhiteSpace($env:HERESAY_UI_IDLE_SECONDS)) {
             $argList += @('-AcknowledgedIdleSeconds', "$([int]$cfg['uiIdleSeconds'])")
         }
 
@@ -791,7 +791,7 @@ Write-EntryLog ("enqueued '{0}' as {1} (model={2}, speakers={3}{4})" -f $resolve
 if ($NoWorker) { Write-EntryLog 'NoWorker set; exiting after enqueue.'; exit 0 }
 
 # --- race for the worker role -------------------------------------------------
-$mutexName = "Local\TranscribeIt.Worker.$(Get-InstanceId -Root $InstallRoot)"
+$mutexName = "Local\Heresay.Worker.$(Get-InstanceId -Root $InstallRoot)"
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex($false, $mutexName, [ref]$createdNew)
 $owned = $false
@@ -1001,7 +1001,7 @@ try {
 catch {
     Write-EntryLog "worker crashed: $($_.Exception.Message)" 'ERROR'
     Write-EventObject @{
-        type = 'error'; stage = 'error'; message = 'TranscribeIt stopped unexpectedly.'
+        type = 'error'; stage = 'error'; message = 'Heresay stopped unexpectedly.'
         logPath = $EntryLog; fatal = $true
     }
     Write-EventObject @{ type = 'batchComplete'; succeeded = $succeeded; failed = $failed + 1; pdfPaths = $pdfPaths.ToArray() }

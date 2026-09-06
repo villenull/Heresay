@@ -65,7 +65,7 @@
     Menu label. Defaults to 'Transcribe new conversation'.
 
 .PARAMETER IconPath
-    Icon for the entries. Defaults to app\TranscribeIt.ico beside the recorder.
+    Icon for the entries. Defaults to app\Heresay.ico beside the recorder.
 
 .PARAMETER Position
     Where in the menu the entry sits. The shell understands only 'Top', 'Bottom', or
@@ -96,7 +96,7 @@
     shortcut name.
 
 .EXAMPLE
-    .\Register-RecordVerb.ps1 -InstallRoot "$env:LOCALAPPDATA\Programs\TranscribeIt"
+    .\Register-RecordVerb.ps1 -InstallRoot "$env:LOCALAPPDATA\Programs\Heresay"
 
 .EXAMPLE
     .\Register-RecordVerb.ps1 -InstallRoot C:\x -RegistryRoot 'HKCU:\Software\ScratchTest' -WhatIf
@@ -183,7 +183,7 @@ $result = [ordered]@{
 
 function Resolve-RecordIcon {
     if ($IconPath) { return $IconPath }
-    $ico = Join-Path $InstallRoot 'app\TranscribeIt.ico'
+    $ico = Join-Path $InstallRoot 'app\Heresay.ico'
     if (Test-Path -LiteralPath $ico) { return "$ico,0" }
     return ''
 }

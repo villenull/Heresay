@@ -1,5 +1,5 @@
 <#
-    Shared helpers for Install-TranscribeIt.ps1 and Uninstall-TranscribeIt.ps1.
+    Shared helpers for Install-Heresay.ps1 and Uninstall-Heresay.ps1.
     Dot-sourced, not a module, so it works from a plain folder with no PSModulePath
     changes and no execution-policy machinery beyond -ExecutionPolicy Bypass.
 
@@ -10,26 +10,29 @@ Set-StrictMode -Version Latest
 
 # ------------------------------------------------------------------- constants --
 
-$script:TI_ProductName = 'TranscribeIt'
-$script:TI_ManifestVersion = 1
+$script:HERESAY_ProductName = 'Heresay'
+$script:HERESAY_ManifestVersion = 1
 
 # ------------------------------------------------------------------ diagnostics --
 
-$script:TI_LogPath = $null
-$script:TI_Quiet   = $false
+$script:HERESAY_LogPath = $null
+$script:HERESAY_Quiet   = $false
 # Must be declared, not just assigned on first use: Set-StrictMode -Version Latest makes
 # reading an unset variable a terminating error, which would kill the first download.
-$script:TI_HttpClient = $null
+$script:HERESAY_HttpClient = $null
 
-function Initialize-TiLog {
-    param([Parameter(Mandatory)][string] $Path)
+function Initialize-HeresayLog {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [string] $Activity = 'installer'
+    )
     $dir = Split-Path -Parent $Path
     if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $script:TI_LogPath = $Path
-    Write-TiLog "==== $script:TI_ProductName installer log opened $(Get-Date -Format 'u') ===="
+    $script:HERESAY_LogPath = $Path
+    Write-HeresayLog "==== $script:HERESAY_ProductName $Activity log opened $(Get-Date -Format 'u') ===="
 }
 
-function Move-TiLog {
+function Move-HeresayLog {
     <#
         Relocate the log after the fact.
 
@@ -39,7 +42,7 @@ function Move-TiLog {
         own promise that "nothing was changed" untrue.
     #>
     param([Parameter(Mandatory)][string] $To)
-    $from = $script:TI_LogPath
+    $from = $script:HERESAY_LogPath
     try {
         $dir = Split-Path -Parent $To
         if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
@@ -48,54 +51,54 @@ function Move-TiLog {
             [System.IO.File]::WriteAllText($To, $existing + [System.IO.File]::ReadAllText($from), [System.Text.UTF8Encoding]::new($false))
             Remove-Item -LiteralPath $from -Force -ErrorAction SilentlyContinue
         }
-        $script:TI_LogPath = $To
-        Write-TiLog "log relocated from '$from' to '$To'"
+        $script:HERESAY_LogPath = $To
+        Write-HeresayLog "log relocated from '$from' to '$To'"
     }
-    catch { Write-TiLog "could not relocate the log to '$To': $($_.Exception.Message)" 'WARN' }
+    catch { Write-HeresayLog "could not relocate the log to '$To': $($_.Exception.Message)" 'WARN' }
 }
 
-function Write-TiLog {
+function Write-HeresayLog {
     param([string] $Message, [string] $Level = 'INFO')
     $line = '{0} [{1,-5}] {2}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'), $Level, $Message
-    if ($script:TI_LogPath) {
-        try { [System.IO.File]::AppendAllText($script:TI_LogPath, "$line`r`n", [System.Text.UTF8Encoding]::new($false)) } catch { }
+    if ($script:HERESAY_LogPath) {
+        try { [System.IO.File]::AppendAllText($script:HERESAY_LogPath, "$line`r`n", [System.Text.UTF8Encoding]::new($false)) } catch { }
     }
     Write-Verbose $line
 }
 
-function Write-TiStep {
+function Write-HeresayStep {
     param([string] $Message)
-    if (-not $script:TI_Quiet) { Write-Host "==> $Message" -ForegroundColor Cyan }
-    Write-TiLog $Message
+    if (-not $script:HERESAY_Quiet) { Write-Host "==> $Message" -ForegroundColor Cyan }
+    Write-HeresayLog $Message
 }
 
-function Write-TiInfo {
+function Write-HeresayInfo {
     param([string] $Message)
-    if (-not $script:TI_Quiet) { Write-Host "    $Message" }
-    Write-TiLog $Message
+    if (-not $script:HERESAY_Quiet) { Write-Host "    $Message" }
+    Write-HeresayLog $Message
 }
 
-function Write-TiOk {
+function Write-HeresayOk {
     param([string] $Message)
-    if (-not $script:TI_Quiet) { Write-Host "    OK   $Message" -ForegroundColor Green }
-    Write-TiLog "OK: $Message"
+    if (-not $script:HERESAY_Quiet) { Write-Host "    OK   $Message" -ForegroundColor Green }
+    Write-HeresayLog "OK: $Message"
 }
 
-function Write-TiWarn {
+function Write-HeresayWarn {
     param([string] $Message)
-    if (-not $script:TI_Quiet) { Write-Host "    WARN $Message" -ForegroundColor Yellow }
-    Write-TiLog $Message 'WARN'
+    if (-not $script:HERESAY_Quiet) { Write-Host "    WARN $Message" -ForegroundColor Yellow }
+    Write-HeresayLog $Message 'WARN'
 }
 
-function Write-TiFail {
+function Write-HeresayFail {
     param([string] $Message)
-    if (-not $script:TI_Quiet) { Write-Host "    FAIL $Message" -ForegroundColor Red }
-    Write-TiLog $Message 'ERROR'
+    if (-not $script:HERESAY_Quiet) { Write-Host "    FAIL $Message" -ForegroundColor Red }
+    Write-HeresayLog $Message 'ERROR'
 }
 
 # --------------------------------------------------------------------- plumbing --
 
-function Get-TiFieldValue {
+function Get-HeresayFieldValue {
     <# Accept documented field aliases so older manifests remain readable. #>
     param(
         # NOT Mandatory on purpose: callers legitimately pass $null for an absent
@@ -116,7 +119,7 @@ function Get-TiFieldValue {
     return $Default
 }
 
-function Get-TiFileHash256 {
+function Get-HeresayFileHash256 {
     param([Parameter(Mandatory)][string] $Path)
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
@@ -127,7 +130,7 @@ function Get-TiFileHash256 {
     finally { $sha.Dispose() }
 }
 
-function Format-TiBytes {
+function Format-HeresayBytes {
     param([long] $Bytes)
     if ($Bytes -ge 1GB) { return '{0:N2} GB' -f ($Bytes / 1GB) }
     if ($Bytes -ge 1MB) { return '{0:N1} MB' -f ($Bytes / 1MB) }
@@ -137,9 +140,9 @@ function Format-TiBytes {
 
 # -------------------------------------------------------------------- downloads --
 
-function Get-TiHttpClient {
+function Get-HeresayHttpClient {
     <# One client for the whole run, using the current user's system proxy settings. #>
-    if ($script:TI_HttpClient) { return $script:TI_HttpClient }
+    if ($script:HERESAY_HttpClient) { return $script:HERESAY_HttpClient }
     $handler = [System.Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $true
     try {
@@ -147,15 +150,15 @@ function Get-TiHttpClient {
         $handler.Proxy = [System.Net.WebRequest]::GetSystemWebProxy()
         $handler.Proxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
     }
-    catch { Write-TiLog "Could not attach the system proxy: $($_.Exception.Message)" 'WARN' }
+    catch { Write-HeresayLog "Could not attach the system proxy: $($_.Exception.Message)" 'WARN' }
     $c = [System.Net.Http.HttpClient]::new($handler)
     $c.Timeout = [TimeSpan]::FromMinutes(30)
-    $c.DefaultRequestHeaders.UserAgent.ParseAdd("$script:TI_ProductName-Installer/1.0")
-    $script:TI_HttpClient = $c
+    $c.DefaultRequestHeaders.UserAgent.ParseAdd("$script:HERESAY_ProductName-Installer/1.0")
+    $script:HERESAY_HttpClient = $c
     return $c
 }
 
-function Invoke-TiDownload {
+function Invoke-HeresayDownload {
     <#
     .SYNOPSIS
         Download one file, resuming a part-finished download and retrying on failure.
@@ -186,21 +189,21 @@ function Invoke-TiDownload {
     # Already downloaded and verified? Skip the network entirely.
     if ((Test-Path -LiteralPath $OutFile) -and -not $Force) {
         if ($Sha256) {
-            $have = Get-TiFileHash256 -Path $OutFile
+            $have = Get-HeresayFileHash256 -Path $OutFile
             if ($have -eq $Sha256.ToLowerInvariant()) {
-                Write-TiOk "$name already present and SHA-256 verified; skipping download."
+                Write-HeresayOk "$name already present and SHA-256 verified; skipping download."
                 return [pscustomobject]@{ Path = $OutFile; Skipped = $true; Bytes = (Get-Item -LiteralPath $OutFile).Length }
             }
-            Write-TiWarn "$name is present but its hash does not match the manifest; re-downloading."
+            Write-HeresayWarn "$name is present but its hash does not match the manifest; re-downloading."
             Remove-Item -LiteralPath $OutFile -Force
         }
         else {
-            Write-TiOk "$name already present (no hash in manifest to check); skipping download."
+            Write-HeresayOk "$name already present (no hash in manifest to check); skipping download."
             return [pscustomobject]@{ Path = $OutFile; Skipped = $true; Bytes = (Get-Item -LiteralPath $OutFile).Length }
         }
     }
 
-    $client = Get-TiHttpClient
+    $client = Get-HeresayHttpClient
     $lastError = $null
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
@@ -211,16 +214,16 @@ function Invoke-TiDownload {
             $req = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, $Uri)
             if ($have -gt 0) {
                 $req.Headers.Range = [System.Net.Http.Headers.RangeHeaderValue]::new($have, $null)
-                Write-TiInfo "$name - resuming at $(Format-TiBytes $have) (attempt $attempt/$MaxAttempts)"
+                Write-HeresayInfo "$name - resuming at $(Format-HeresayBytes $have) (attempt $attempt/$MaxAttempts)"
             }
-            elseif ($attempt -gt 1) { Write-TiInfo "$name - retry $attempt/$MaxAttempts" }
+            elseif ($attempt -gt 1) { Write-HeresayInfo "$name - retry $attempt/$MaxAttempts" }
 
             $resp = $client.SendAsync($req, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
 
             # A server that ignores Range restarts the file; drop what we had.
             $appending = $true
             if ($resp.StatusCode -eq [System.Net.HttpStatusCode]::OK -and $have -gt 0) {
-                Write-TiInfo "$name - server ignored the resume request; starting again from zero."
+                Write-HeresayInfo "$name - server ignored the resume request; starting again from zero."
                 $appending = $false
                 $have = 0
             }
@@ -255,16 +258,16 @@ function Invoke-TiDownload {
                         $lastReport = Get-Date
                         if ($total -gt 0) {
                             $pct = [Math]::Min(100, [Math]::Round(($written / $total) * 100))
-                            Write-Progress -Id 7 -Activity "Downloading $name" -Status "$(Format-TiBytes $written) of $(Format-TiBytes $total)" -PercentComplete $pct
+                            Write-Progress -Id 7 -Activity "Downloading $name" -Status "$(Format-HeresayBytes $written) of $(Format-HeresayBytes $total)" -PercentComplete $pct
                         }
                         else {
-                            Write-Progress -Id 7 -Activity "Downloading $name" -Status (Format-TiBytes $written)
+                            Write-Progress -Id 7 -Activity "Downloading $name" -Status (Format-HeresayBytes $written)
                         }
                     }
                     # Machine-readable progress for the GUI wrapper (installer\Install-Gui.ps1); gated so the console experience is untouched.
-                    if ($env:TI_INSTALL_GUI -eq '1' -and ((Get-Date) - $lastGuiReport).TotalMilliseconds -ge 500) {
+                    if ($env:HERESAY_INSTALL_GUI -eq '1' -and ((Get-Date) - $lastGuiReport).TotalMilliseconds -ge 500) {
                         $lastGuiReport = Get-Date
-                        Write-Host "#TIDL|$name|$written|$total"
+                        Write-Host "#HERESAYDL|$name|$written|$total"
                     }
                 }
                 $dst.Flush()
@@ -280,7 +283,7 @@ function Invoke-TiDownload {
         catch {
             $lastError = $_
             Write-Progress -Id 7 -Activity "Downloading $name" -Completed
-            Write-TiWarn "$name - attempt $attempt failed: $($_.Exception.Message)"
+            Write-HeresayWarn "$name - attempt $attempt failed: $($_.Exception.Message)"
             if ($attempt -lt $MaxAttempts) { Start-Sleep -Seconds ([Math]::Min(30, 3 * [Math]::Pow(2, $attempt - 1))) }
         }
     }
@@ -291,11 +294,11 @@ function Invoke-TiDownload {
 
     $bytes = (Get-Item -LiteralPath $OutFile).Length
     if ($ExpectedBytes -gt 0 -and $bytes -ne $ExpectedBytes) {
-        Write-TiWarn "$name is $(Format-TiBytes $bytes) but the manifest says $(Format-TiBytes $ExpectedBytes)."
+        Write-HeresayWarn "$name is $(Format-HeresayBytes $bytes) but the manifest says $(Format-HeresayBytes $ExpectedBytes)."
     }
 
     if ($Sha256) {
-        $actual = Get-TiFileHash256 -Path $OutFile
+        $actual = Get-HeresayFileHash256 -Path $OutFile
         if ($actual -ne $Sha256.ToLowerInvariant()) {
             Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
             throw @"
@@ -308,10 +311,10 @@ retry blindly - either the manifest is stale or something modified the download 
 transit (a proxy rewriting the body, a cached error page, or tampering).
 "@
         }
-        Write-TiOk "$name - $(Format-TiBytes $bytes), SHA-256 verified."
+        Write-HeresayOk "$name - $(Format-HeresayBytes $bytes), SHA-256 verified."
     }
     else {
-        Write-TiWarn "$name - $(Format-TiBytes $bytes) downloaded, but the manifest carries NO SHA-256, so it could not be verified."
+        Write-HeresayWarn "$name - $(Format-HeresayBytes $bytes) downloaded, but the manifest carries NO SHA-256, so it could not be verified."
     }
 
     return [pscustomobject]@{ Path = $OutFile; Skipped = $false; Bytes = $bytes }
@@ -319,7 +322,7 @@ transit (a proxy rewriting the body, a cached error page, or tampering).
 
 # ------------------------------------------------------------------- extraction --
 
-function Expand-TiArchive {
+function Expand-HeresayArchive {
     <# zip via .NET (faster and overwrites cleanly), tar/tar.gz via the bundled tar.exe. #>
     param(
         [Parameter(Mandatory)][string] $ArchivePath,
@@ -351,7 +354,7 @@ function Expand-TiArchive {
             if ($StripComponents -gt 0) {
                 $staging = Join-Path ([System.IO.Path]::GetTempPath()) ("ti-zip-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
                 [System.IO.Compression.ZipFile]::ExtractToDirectory($ArchivePath, $staging, $true)
-                try { Move-TiStripped -From $staging -To $Destination -Strip $StripComponents }
+                try { Move-HeresayStripped -From $staging -To $Destination -Strip $StripComponents }
                 finally { Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue }
             }
             else {
@@ -369,7 +372,7 @@ function Expand-TiArchive {
     }
 }
 
-function Move-TiStripped {
+function Move-HeresayStripped {
     <# Emulate tar --strip-components for zips: drop N leading path segments. #>
     param([string] $From, [string] $To, [int] $Strip)
     Get-ChildItem -LiteralPath $From -Recurse -File | ForEach-Object {
@@ -386,7 +389,7 @@ function Move-TiStripped {
 
 # --------------------------------------------------------------------- manifest --
 
-function Read-TiJsonFile {
+function Read-HeresayJsonFile {
     param([Parameter(Mandatory)][string] $Path)
     $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
     if ([string]::IsNullOrWhiteSpace($raw)) { throw "'$Path' is empty." }
@@ -394,7 +397,7 @@ function Read-TiJsonFile {
     catch { throw "'$Path' is not valid JSON: $($_.Exception.Message)" }
 }
 
-function Write-TiJsonFile {
+function Write-HeresayJsonFile {
     <#
         ConvertTo-Json escapes backslashes correctly, so Windows paths survive. The
         round-trip check is not paranoia: hand-built JSON containing C:\... paths is
@@ -409,10 +412,10 @@ function Write-TiJsonFile {
     if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
     # And confirm what actually landed on disk parses too.
-    $null = Read-TiJsonFile -Path $Path
+    $null = Read-HeresayJsonFile -Path $Path
 }
 
-function Resolve-TiDownloadManifest {
+function Resolve-HeresayDownloadManifest {
     <#
         Normalise contracts/download-manifest.json into one shape:
           Name, Uri, FileName, SizeBytes, Sha256, ArchiveType, Target,
@@ -420,49 +423,49 @@ function Resolve-TiDownloadManifest {
     #>
     param([Parameter(Mandatory)][string] $Path)
 
-    $doc = Read-TiJsonFile -Path $Path
-    $list = Get-TiFieldValue -Object $doc -Names @('components', 'downloads', 'files', 'items')
+    $doc = Read-HeresayJsonFile -Path $Path
+    $list = Get-HeresayFieldValue -Object $doc -Names @('components', 'downloads', 'files', 'items')
     if (-not $list) { throw "'$Path' has no components/downloads array." }
 
     $out = New-Object System.Collections.ArrayList
     foreach ($c in @($list)) {
-        $uri  = Get-TiFieldValue -Object $c -Names @('url', 'uri', 'resolvedUrl', 'downloadUrl', 'href')
-        $name = Get-TiFieldValue -Object $c -Names @('name', 'component', 'id') -Default 'unnamed'
-        $file = Get-TiFieldValue -Object $c -Names @('filename', 'fileName', 'file', 'localName')
+        $uri  = Get-HeresayFieldValue -Object $c -Names @('url', 'uri', 'resolvedUrl', 'downloadUrl', 'href')
+        $name = Get-HeresayFieldValue -Object $c -Names @('name', 'component', 'id') -Default 'unnamed'
+        $file = Get-HeresayFieldValue -Object $c -Names @('filename', 'fileName', 'file', 'localName')
         if (-not $file -and $uri) {
             try { $file = Split-Path -Leaf ([uri]$uri).AbsolutePath } catch { $file = "$name.bin" }
         }
-        $smoke = Get-TiFieldValue -Object $c -Names @('smokeTest', 'smoke', 'verify')
-        $optionalValue = Get-TiFieldValue -Object $c -Names @('optional') -Default $null
+        $smoke = Get-HeresayFieldValue -Object $c -Names @('smokeTest', 'smoke', 'verify')
+        $optionalValue = Get-HeresayFieldValue -Object $c -Names @('optional') -Default $null
         if ($null -eq $optionalValue) {
-            $requiredValue = Get-TiFieldValue -Object $c -Names @('required') -Default $true
+            $requiredValue = Get-HeresayFieldValue -Object $c -Names @('required') -Default $true
             $optionalValue = -not [bool]$requiredValue
         }
         [void]$out.Add([pscustomobject]@{
             Name            = [string]$name
             Uri             = [string]$uri
             FileName        = [string]$file
-            SizeBytes       = [long](Get-TiFieldValue -Object $c -Names @('sizeBytes', 'size', 'bytes', 'length') -Default 0)
-            Sha256          = [string](Get-TiFieldValue -Object $c -Names @('sha256', 'sha256sum', 'hash', 'checksum') -Default '')
-            ArchiveType     = [string](Get-TiFieldValue -Object $c -Names @('archiveType', 'type', 'format', 'kind') -Default '')
-            Target          = [string](Get-TiFieldValue -Object $c -Names @('target', 'extractTo', 'destination', 'dest', 'installTo') -Default '')
-            StripComponents = [int](Get-TiFieldValue -Object $c -Names @('stripComponents', 'strip') -Default 0)
-            SmokeExe        = [string](Get-TiFieldValue -Object $smoke -Names @('exe', 'path', 'command') -Default '')
-            SmokeArgs       = @(Get-TiFieldValue -Object $smoke -Names @('args', 'arguments') -Default @())
+            SizeBytes       = [long](Get-HeresayFieldValue -Object $c -Names @('sizeBytes', 'size', 'bytes', 'length') -Default 0)
+            Sha256          = [string](Get-HeresayFieldValue -Object $c -Names @('sha256', 'sha256sum', 'hash', 'checksum') -Default '')
+            ArchiveType     = [string](Get-HeresayFieldValue -Object $c -Names @('archiveType', 'type', 'format', 'kind') -Default '')
+            Target          = [string](Get-HeresayFieldValue -Object $c -Names @('target', 'extractTo', 'destination', 'dest', 'installTo') -Default '')
+            StripComponents = [int](Get-HeresayFieldValue -Object $c -Names @('stripComponents', 'strip') -Default 0)
+            SmokeExe        = [string](Get-HeresayFieldValue -Object $smoke -Names @('exe', 'path', 'command') -Default '')
+            SmokeArgs       = @(Get-HeresayFieldValue -Object $smoke -Names @('args', 'arguments') -Default @())
             Optional        = [bool]$optionalValue
             # An install-time INPUT rather than a shipped artefact: downloaded, verified,
             # consumed by a derivation step, then deleted. The f16 weights the default
             # speech model is quantised from are the only current example.
-            InstallTimeOnly = [bool](Get-TiFieldValue -Object $c -Names @('installTimeOnly', 'installTimeSourceOnly', 'consumeAtInstall') -Default $false)
+            InstallTimeOnly = [bool](Get-HeresayFieldValue -Object $c -Names @('installTimeOnly', 'installTimeSourceOnly', 'consumeAtInstall') -Default $false)
             # The manifest maps individual archive members to exact destinations
             # instead of naming one target directory. Carry it through verbatim.
-            Extract         = @(Get-TiFieldValue -Object $c -Names @('extract', 'extractMap', 'map') -Default @())
+            Extract         = @(Get-HeresayFieldValue -Object $c -Names @('extract', 'extractMap', 'map') -Default @())
         })
     }
     return $out.ToArray()
 }
 
-function Install-TiComponentFiles {
+function Install-HeresayComponentFiles {
     <#
         Applies the per-file `extract` mapping from contracts/download-manifest.json.
         Each entry is either:
@@ -491,14 +494,14 @@ function Install-TiComponentFiles {
         if ($isArchive) {
             $staging = Join-Path ([System.IO.Path]::GetTempPath()) ('ti-x-' + [guid]::NewGuid().ToString('N').Substring(0, 10))
             New-Item -ItemType Directory -Force -Path $staging | Out-Null
-            Expand-TiArchive -ArchivePath $SourcePath -Destination $staging -ArchiveType $ArchiveType
+            Expand-HeresayArchive -ArchivePath $SourcePath -Destination $staging -ArchiveType $ArchiveType
         }
 
         foreach ($e in @($Extract)) {
-            $from  = Get-TiFieldValue -Object $e -Names @('from', 'source', 'src')
-            $glob  = Get-TiFieldValue -Object $e -Names @('fromGlob', 'glob', 'pattern')
-            $to    = Get-TiFieldValue -Object $e -Names @('to', 'dest', 'destination')
-            $toDir = Get-TiFieldValue -Object $e -Names @('toDir', 'destDir', 'directory')
+            $from  = Get-HeresayFieldValue -Object $e -Names @('from', 'source', 'src')
+            $glob  = Get-HeresayFieldValue -Object $e -Names @('fromGlob', 'glob', 'pattern')
+            $to    = Get-HeresayFieldValue -Object $e -Names @('to', 'dest', 'destination')
+            $toDir = Get-HeresayFieldValue -Object $e -Names @('toDir', 'destDir', 'directory')
 
             if ($glob) {
                 if (-not $toDir) { throw "extract entry has fromGlob '$glob' but no toDir" }
@@ -564,10 +567,10 @@ function Install-TiComponentFiles {
 # someone once ran an unvendored tool on one laptop, appeared in no manifest, and would
 # have made a clean install on any other machine produce a tool that could not start.
 
-function Resolve-TiDerivedModels {
+function Resolve-HeresayDerivedModels {
     <#
         Normalise the derivedComponents array of the download manifest, the same way
-        Resolve-TiDownloadManifest normalises components. Returns an empty array when the
+        Resolve-HeresayDownloadManifest normalises components. Returns an empty array when the
         manifest has no such section, so an older manifest still installs.
 
         Shape: Name, Target, SizeBytes, Sha256, SourceComponent, SourcePath, Tool,
@@ -575,8 +578,8 @@ function Resolve-TiDerivedModels {
     #>
     param([Parameter(Mandatory)][string] $Path)
 
-    $doc  = Read-TiJsonFile -Path $Path
-    $list = Get-TiFieldValue -Object $doc -Names @('derivedComponents', 'derived', 'derivedModels')
+    $doc  = Read-HeresayJsonFile -Path $Path
+    $list = Get-HeresayFieldValue -Object $doc -Names @('derivedComponents', 'derived', 'derivedModels')
     # Guard before @(): @($null) is a one-element array holding $null, which would
     # otherwise be normalised into a bogus 'unnamed' derivation.
     if (-not $list) { return @() }
@@ -585,37 +588,37 @@ function Resolve-TiDerivedModels {
     foreach ($d in @($list)) {
         if ($null -eq $d) { continue }
         [void]$out.Add([pscustomobject]@{
-            Name              = [string](Get-TiFieldValue -Object $d -Names @('name', 'component', 'id') -Default 'unnamed')
-            Target            = [string](Get-TiFieldValue -Object $d -Names @('target', 'to', 'destination') -Default '')
-            SizeBytes         = [long](Get-TiFieldValue -Object $d -Names @('sizeBytes', 'size', 'bytes') -Default 0)
-            Sha256            = [string](Get-TiFieldValue -Object $d -Names @('sha256', 'hash', 'checksum') -Default '')
-            SourceComponent   = [string](Get-TiFieldValue -Object $d -Names @('derivedFrom', 'sourceComponent', 'fromComponent') -Default '')
-            SourcePath        = [string](Get-TiFieldValue -Object $d -Names @('sourcePath', 'from', 'source') -Default '')
-            Tool              = [string](Get-TiFieldValue -Object $d -Names @('tool', 'exe', 'command') -Default '')
-            QuantType         = [string](Get-TiFieldValue -Object $d -Names @('quantType', 'quant', 'type') -Default '')
-            DeleteSourceAfter = [bool](Get-TiFieldValue -Object $d -Names @('deleteSourceAfter', 'deleteSource') -Default $false)
-            Optional          = [bool](Get-TiFieldValue -Object $d -Names @('optional') -Default $false)
+            Name              = [string](Get-HeresayFieldValue -Object $d -Names @('name', 'component', 'id') -Default 'unnamed')
+            Target            = [string](Get-HeresayFieldValue -Object $d -Names @('target', 'to', 'destination') -Default '')
+            SizeBytes         = [long](Get-HeresayFieldValue -Object $d -Names @('sizeBytes', 'size', 'bytes') -Default 0)
+            Sha256            = [string](Get-HeresayFieldValue -Object $d -Names @('sha256', 'hash', 'checksum') -Default '')
+            SourceComponent   = [string](Get-HeresayFieldValue -Object $d -Names @('derivedFrom', 'sourceComponent', 'fromComponent') -Default '')
+            SourcePath        = [string](Get-HeresayFieldValue -Object $d -Names @('sourcePath', 'from', 'source') -Default '')
+            Tool              = [string](Get-HeresayFieldValue -Object $d -Names @('tool', 'exe', 'command') -Default '')
+            QuantType         = [string](Get-HeresayFieldValue -Object $d -Names @('quantType', 'quant', 'type') -Default '')
+            DeleteSourceAfter = [bool](Get-HeresayFieldValue -Object $d -Names @('deleteSourceAfter', 'deleteSource') -Default $false)
+            Optional          = [bool](Get-HeresayFieldValue -Object $d -Names @('optional') -Default $false)
         })
     }
     return $out.ToArray()
 }
 
-function Get-TiRecordedDerivedHash {
+function Get-HeresayRecordedDerivedHash {
     <# The SHA-256 a PREVIOUS install of this machine recorded for a derived model. #>
     param([AllowNull()] $Manifest, [string] $Name = '', [string] $Path = '')
     if ($null -eq $Manifest) { return '' }
     if ($Manifest.PSObject.Properties.Name -notcontains 'derivedModels') { return '' }
     foreach ($d in @($Manifest.derivedModels)) {
         if ($null -eq $d) { continue }
-        $n = [string](Get-TiFieldValue -Object $d -Names @('name') -Default '')
-        $p = [string](Get-TiFieldValue -Object $d -Names @('path') -Default '')
+        $n = [string](Get-HeresayFieldValue -Object $d -Names @('name') -Default '')
+        $p = [string](Get-HeresayFieldValue -Object $d -Names @('path') -Default '')
         $hit = ($Name -and $n -and $n -eq $Name) -or ($Path -and $p -and $p.ToLowerInvariant() -eq $Path.ToLowerInvariant())
-        if ($hit) { return ([string](Get-TiFieldValue -Object $d -Names @('sha256') -Default '')).ToLowerInvariant() }
+        if ($hit) { return ([string](Get-HeresayFieldValue -Object $d -Names @('sha256') -Default '')).ToLowerInvariant() }
     }
     return ''
 }
 
-function Get-TiDerivedModelState {
+function Get-HeresayDerivedModelState {
     <#
     .SYNOPSIS
         Is the derived model already on disk and trustworthy? Decides both whether to
@@ -658,7 +661,7 @@ function Get-TiDerivedModelState {
         return [pscustomobject]$r
     }
 
-    $r.Sha256 = Get-TiFileHash256 -Path $out
+    $r.Sha256 = Get-HeresayFileHash256 -Path $out
     if ($Spec.Sha256 -and $r.Sha256 -eq $Spec.Sha256.ToLowerInvariant()) {
         $r.MatchesPinned = $true
         $r.Ok = $true
@@ -666,7 +669,7 @@ function Get-TiDerivedModelState {
         return [pscustomobject]$r
     }
 
-    $prev = Get-TiRecordedDerivedHash -Manifest $PreviousManifest -Name $Spec.Name -Path $out
+    $prev = Get-HeresayRecordedDerivedHash -Manifest $PreviousManifest -Name $Spec.Name -Path $out
     if ($prev -and $r.Sha256 -eq $prev) {
         $r.MatchesPrevious = $true
         $r.Ok = $true
@@ -678,7 +681,7 @@ function Get-TiDerivedModelState {
     return [pscustomobject]$r
 }
 
-function Invoke-TiQuantizeModel {
+function Invoke-HeresayQuantizeModel {
     <#
     .SYNOPSIS
         Run whisper-quantize.exe to derive a quantised model from f16 weights.
@@ -755,7 +758,7 @@ function Invoke-TiQuantizeModel {
     return [pscustomobject]$r
 }
 
-function New-TiSendToShortcuts {
+function New-HeresaySendToShortcuts {
     <# Remove shortcuts created by versions that used the Windows Send To menu.
        The function name and switches remain for installer command compatibility. #>
     param(
@@ -803,7 +806,7 @@ function New-TiSendToShortcuts {
 # ------------------------------------------------------------------ smoke tests --
 
 
-function Invoke-TiSmokeTest {
+function Invoke-HeresaySmokeTest {
     <# Launch an executable and see whether it actually runs on this machine. Many of
        these tools return a non-zero exit code for --help, so producing output is the
        real signal, not the exit code. #>
@@ -847,7 +850,7 @@ function Invoke-TiSmokeTest {
 
 # ------------------------------------------------------------------- preflight --
 
-function Get-TiDotnetRuntimes {
+function Get-HeresayDotnetRuntimes {
     <# Read the shared-framework folders directly. `dotnet --list-runtimes` needs dotnet
        on PATH, which is not guaranteed even when the runtime is installed. #>
     $found = New-Object System.Collections.ArrayList
@@ -867,7 +870,7 @@ function Get-TiDotnetRuntimes {
     return $found.ToArray()
 }
 
-function Find-TiEdge {
+function Find-HeresayEdge {
     $candidates = @(
         (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
         (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
@@ -885,7 +888,7 @@ function Find-TiEdge {
     return $null
 }
 
-function Find-TiPwsh {
+function Find-HeresayPwsh {
     $candidates = @(
         (Join-Path $PSHOME 'pwsh.exe'),
         'C:\Program Files\PowerShell\7\pwsh.exe',
@@ -899,7 +902,7 @@ function Find-TiPwsh {
     return $null
 }
 
-function Test-TiDirectoryWritable {
+function Test-HeresayDirectoryWritable {
     <#
         Deliberately all .NET and no cmdlets.
 
@@ -935,12 +938,12 @@ function Test-TiDirectoryWritable {
     }
 }
 
-function Test-TiRegistryWritable {
-    <# -WhatIf:$false on both halves for the same reason as Test-TiDirectoryWritable: a
+function Test-HeresayRegistryWritable {
+    <# -WhatIf:$false on both halves for the same reason as Test-HeresayDirectoryWritable: a
        suppressed New-Item would make this return $true having tested nothing at all. #>
     param([string] $KeyPath = 'HKCU:\Software\Classes')
     try {
-        $probe = "$KeyPath\TranscribeItWriteProbe"
+        $probe = "$KeyPath\HeresayWriteProbe"
         New-Item -Path $probe -Force -WhatIf:$false -Confirm:$false | Out-Null
         Remove-Item -LiteralPath $probe -Force -Recurse -WhatIf:$false -Confirm:$false
         return $true
@@ -950,11 +953,11 @@ function Test-TiRegistryWritable {
 
 # ------------------------------------------------------- install-manifest model --
 
-function New-TiInstallManifest {
+function New-HeresayInstallManifest {
     param([Parameter(Mandatory)][string] $InstallRoot, [string] $Version = '1.0.0')
     return [ordered]@{
-        product          = $script:TI_ProductName
-        manifestVersion  = $script:TI_ManifestVersion
+        product          = $script:HERESAY_ProductName
+        manifestVersion  = $script:HERESAY_ManifestVersion
         version          = $Version
         installRoot      = $InstallRoot
         installedUtc     = (Get-Date).ToUniversalTime().ToString('o')
@@ -969,7 +972,7 @@ function New-TiInstallManifest {
         components       = @()
         # Models the installer PRODUCED rather than downloaded, with the measured hash of
         # what it actually produced. Declared here rather than added on the fly so it is
-        # always present in the same position, and so Get-TiRecordedDerivedHash can rely
+        # always present in the same position, and so Get-HeresayRecordedDerivedHash can rely
         # on finding it when reading back a previous install's manifest.
         derivedModels    = @()
         smokeTests       = @()
@@ -977,7 +980,7 @@ function New-TiInstallManifest {
     }
 }
 
-function Add-TiManifestFile {
+function Add-HeresayManifestFile {
     param(
         [Parameter(Mandatory)] $Manifest,
         [Parameter(Mandatory)][string] $Path,
@@ -1019,16 +1022,16 @@ function Add-TiManifestFile {
     # change cannot also be pinned, and being asked for both is a caller bug, so it throws
     # rather than quietly picking one.
     if ($Mutable -and $ForceHash) {
-        throw "Add-TiManifestFile: -Mutable and -ForceHash are contradictory for '$Path'. A file cannot be both expected to change and pinned to a hash."
+        throw "Add-HeresayManifestFile: -Mutable and -ForceHash are contradictory for '$Path'. A file cannot be both expected to change and pinned to a hash."
     }
     if ($Mutable) { $entry['mutable'] = $true }
     elseif ($ForceHash -or (-not $NoHash -and $fi.Length -le 2MB)) {
-        $entry['sha256'] = Get-TiFileHash256 -Path $fi.FullName
+        $entry['sha256'] = Get-HeresayFileHash256 -Path $fi.FullName
     }
     $Manifest.files = @($Manifest.files) + @([pscustomobject]$entry)
 }
 
-function Repair-TiConfigPaths {
+function Repair-HeresayConfigPaths {
     <#
     .SYNOPSIS
         Make config.json's tool paths agree with where the installer actually put things.
@@ -1122,21 +1125,21 @@ function Repair-TiConfigPaths {
     return [pscustomobject]$report
 }
 
-function Get-TiInstallManifestPath {
+function Get-HeresayInstallManifestPath {
     param([Parameter(Mandatory)][string] $InstallRoot)
     return (Join-Path $InstallRoot 'install-manifest.json')
 }
 
 # ----------------------------------------------------------- single-file deploy --
 
-function Update-TiInstalledAppFile {
+function Update-HeresayInstalledAppFile {
     <#
     .SYNOPSIS
         Deploy ONE app file into an existing install and update its manifest entry in the
         same operation.
 
     .DESCRIPTION
-        The gap this closes: nothing but a full Install-TranscribeIt.ps1 run ever wrote
+        The gap this closes: nothing but a full Install-Heresay.ps1 run ever wrote
         install-manifest.json, so iterating on a single script meant hand-copying it into
         the live install. Five entries drifted that way in one session - app\Transcribe.ps1,
         Render-Pdf.ps1, Transcribe-Entry.ps1, Register-ShellVerbs.ps1 and config.json.
@@ -1148,7 +1151,7 @@ function Update-TiInstalledAppFile {
         refuses to copy at all rather than deploy a file it cannot record. Four things went
         unrecorded on this project - two speech models, two app scripts and a Send To
         shortcut - and every one was brought into existence by a path that was not also the
-        path that records it. Same rule as New-TiSendToShortcuts, applied to app\ instead
+        path that records it. Same rule as New-HeresaySendToShortcuts, applied to app\ instead
         of the Send To folder.
 
         It VERIFIES rather than assumes. The destination is re-hashed after the copy and
@@ -1166,7 +1169,7 @@ function Update-TiInstalledAppFile {
         with new UI, and new launcher with old UI, both degrade cleanly.
 
     .PARAMETER SourcePath
-        The file in the source tree, e.g. C:\Users\...\TranscribeIt\app\Progress.ps1.
+        The file in the source tree, e.g. C:\Users\...\Heresay\app\Progress.ps1.
 
     .PARAMETER InstallRoot
         An existing install root. The file lands in <InstallRoot>\app\<leaf>.
@@ -1176,11 +1179,11 @@ function Update-TiInstalledAppFile {
         the installer and then tuned by the user, so deploying over it discards that tuning.
 
     .EXAMPLE
-        Update-TiInstalledAppFile -SourcePath C:\path\to\repo\app\Progress.ps1 -InstallRoot "$env:LOCALAPPDATA\Programs\TranscribeIt"
+        Update-HeresayInstalledAppFile -SourcePath C:\path\to\repo\app\Progress.ps1 -InstallRoot "$env:LOCALAPPDATA\Programs\Heresay"
 
     .EXAMPLE
         # Preview without touching anything.
-        Update-TiInstalledAppFile -SourcePath ...\app\Progress.ps1 -InstallRoot ... -WhatIf
+        Update-HeresayInstalledAppFile -SourcePath ...\app\Progress.ps1 -InstallRoot ... -WhatIf
     #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -1201,14 +1204,14 @@ function Update-TiInstalledAppFile {
     }
     $dst = Join-Path $dstDir $src.Name
 
-    if (-not $ManifestPath) { $ManifestPath = Get-TiInstallManifestPath -InstallRoot $InstallRoot }
+    if (-not $ManifestPath) { $ManifestPath = Get-HeresayInstallManifestPath -InstallRoot $InstallRoot }
     if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
         throw "No install-manifest.json at '$ManifestPath'. Refusing to deploy a file that cannot be recorded."
     }
-    # Read-TiJsonFile throws on malformed JSON, which is the behaviour wanted here: a
+    # Read-HeresayJsonFile throws on malformed JSON, which is the behaviour wanted here: a
     # manifest that cannot be parsed is a manifest that cannot be updated, and deploying
     # anyway is the exact bug this function exists to prevent.
-    $manifest = Read-TiJsonFile -Path $ManifestPath
+    $manifest = Read-HeresayJsonFile -Path $ManifestPath
     if ($manifest.PSObject.Properties.Name -notcontains 'files') {
         throw "'$ManifestPath' has no files[] array; refusing to deploy against it."
     }
@@ -1223,16 +1226,16 @@ function Update-TiInstalledAppFile {
                  [bool]$existing.mutable
 
     if ($isMutable -and -not $Force) {
-        Write-TiWarn ("app\{0} is flagged mutable in the manifest (installer-generated, then user-tuned); not overwriting. Pass -Force if that is genuinely intended." -f $src.Name)
+        Write-HeresayWarn ("app\{0} is flagged mutable in the manifest (installer-generated, then user-tuned); not overwriting. Pass -Force if that is genuinely intended." -f $src.Name)
         return [pscustomobject]@{
             Name = $src.Name; Action = 'skipped-mutable'; Path = $dst
             SizeBytes = $null; Sha256 = ''; ManifestUpdated = $false
         }
     }
 
-    $srcHash   = Get-TiFileHash256 -Path $src.FullName
+    $srcHash   = Get-HeresayFileHash256 -Path $src.FullName
     $alreadyOk = (Test-Path -LiteralPath $dst -PathType Leaf) -and
-                 ((Get-TiFileHash256 -Path $dst) -eq $srcHash)
+                 ((Get-HeresayFileHash256 -Path $dst) -eq $srcHash)
 
     $what = if ($alreadyOk) { "Record app\{0} (already matches source)" } else { "Deploy app\{0} and record it" }
     if (-not $PSCmdlet.ShouldProcess($dst, ($what -f $src.Name))) {
@@ -1245,14 +1248,14 @@ function Update-TiInstalledAppFile {
     if (-not $alreadyOk) {
         Copy-Item -LiteralPath $src.FullName -Destination $dst -Force
         # Verify what landed, not what was asked for. This is the whole point.
-        $landed = Get-TiFileHash256 -Path $dst
+        $landed = Get-HeresayFileHash256 -Path $dst
         if ($landed -ne $srcHash) {
             throw ("Copied '{0}' to '{1}' but the destination hashes differently ({2} vs {3}). Nothing recorded." -f $src.FullName, $dst, $landed, $srcHash)
         }
-        Write-TiOk ("deployed app\{0} ({1})" -f $src.Name, (Format-TiBytes $src.Length))
+        Write-HeresayOk ("deployed app\{0} ({1})" -f $src.Name, (Format-HeresayBytes $src.Length))
     }
     else {
-        Write-TiInfo ("app\{0} already matches the source; refreshing its manifest entry only." -f $src.Name)
+        Write-HeresayInfo ("app\{0} already matches the source; refreshing its manifest entry only." -f $src.Name)
     }
 
     $fi = Get-Item -LiteralPath $dst
@@ -1264,7 +1267,7 @@ function Update-TiInstalledAppFile {
                         $existing.component) { [string]$existing.component } else { $Component }
     }
     if ($isMutable) { $entry['mutable'] = $true }
-    elseif ($fi.Length -le 2MB) { $entry['sha256'] = Get-TiFileHash256 -Path $fi.FullName }
+    elseif ($fi.Length -le 2MB) { $entry['sha256'] = Get-HeresayFileHash256 -Path $fi.FullName }
     # Marks entries written by a single-file deploy rather than by a full install run.
     # Without it, "the manifest is clean" and "the install is current" are indistinguishable
     # from the manifest alone - which is how a two-file-stale install passed an audit with
@@ -1284,15 +1287,15 @@ function Update-TiInstalledAppFile {
     }
     if (-not $replaced) {
         [void]$rebuilt.Add([pscustomobject]$entry)
-        Write-TiInfo ("app\{0} was not in files[]; added it." -f $src.Name)
+        Write-HeresayInfo ("app\{0} was not in files[]; added it." -f $src.Name)
     }
     $manifest.files = $rebuilt.ToArray()
 
     # Temp-then-move. A truncated install-manifest.json is an uninstall that cannot find
-    # what it is meant to remove. Write-TiJsonFile validates the JSON round-trip before and
+    # what it is meant to remove. Write-HeresayJsonFile validates the JSON round-trip before and
     # after writing; the move makes the replacement atomic on the same volume.
     $tmp = "$ManifestPath.new"
-    Write-TiJsonFile -Object $manifest -Path $tmp
+    Write-HeresayJsonFile -Object $manifest -Path $tmp
     Move-Item -LiteralPath $tmp -Destination $ManifestPath -Force
 
     return [pscustomobject]@{

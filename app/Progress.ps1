@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    TranscribeIt progress window - native Windows taskbar progress, ETA and completion flash.
+    Heresay progress window - native Windows taskbar progress, ETA and completion flash.
 
 .DESCRIPTION
     Consumes the progress contract described in
@@ -33,8 +33,8 @@
     as cancelling the whole batch. This script writes exactly where it is told and never
     rewrites the path.
 
-    If nothing passes it, the order is: -CancelFile, then $env:TRANSCRIBEIT_CANCEL_FILE,
-    then %LOCALAPPDATA%\TranscribeIt\run\cancel.flag as a last-resort default for running
+    If nothing passes it, the order is: -CancelFile, then $env:HERESAY_CANCEL_FILE,
+    then %LOCALAPPDATA%\Heresay\run\cancel.flag as a last-resort default for running
     the UI by hand. Which one was used is written to the log at startup and again on
     cancel, because a self-derived path that nobody is polling is the worst possible
     failure mode for a cancel button - it looks like it worked and does nothing.
@@ -61,7 +61,7 @@
     bug that caused: four completed windows from four batches were still resident hours
     later holding ~300 MB each, because the only thing that ever closed this window was
     a click. Nothing is lost when it closes - the PDF is already next to its source.
-    Falls back to $env:TRANSCRIBEIT_UI_LINGER_SECONDS when not passed.
+    Falls back to $env:HERESAY_UI_LINGER_SECONDS when not passed.
 
 .PARAMETER AcknowledgedIdleSeconds
     How long an ACKNOWLEDGED window may sit idle before it closes anyway. Default 1800
@@ -73,7 +73,7 @@
     live install 2026-08-27: a finished window that had been clicked once held 386 MB of
     working set and 247 MB committed, engine long gone. One click should not buy a window
     the right to outlive the session. 0 restores the cancel-for-good behaviour.
-    Falls back to $env:TRANSCRIBEIT_UI_IDLE_SECONDS when not passed.
+    Falls back to $env:HERESAY_UI_IDLE_SECONDS when not passed.
 
 .PARAMETER EngineGraceSeconds
     How long the engine must be gone AND the stream quiet before the run counts as over.
@@ -82,7 +82,7 @@
     never reported as a clean finish or vice versa.
 
 .PARAMETER LogFile
-    UI diagnostics log. Default %LOCALAPPDATA%\TranscribeIt\logs\progress-ui.log.
+    UI diagnostics log. Default %LOCALAPPDATA%\Heresay\logs\progress-ui.log.
     Malformed stream lines are logged here and skipped.
 
 .EXAMPLE
@@ -115,7 +115,7 @@ Set-StrictMode -Off   # the stream is untrusted data; missing properties must be
 # ---------------------------------------------------------------------------
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) { $localAppData = $env:TEMP }
-$stateRoot = Join-Path $localAppData 'TranscribeIt'
+$stateRoot = Join-Path $localAppData 'Heresay'
 
 if ([string]::IsNullOrWhiteSpace($LogFile)) {
     $LogFile = Join-Path $stateRoot 'logs\progress-ui.log'
@@ -124,9 +124,9 @@ if ([string]::IsNullOrWhiteSpace($LogFile)) {
 # is the only process that knows the path the engine is actually polling.
 $script:CancelFileSource = 'launcher (-CancelFile)'
 if ([string]::IsNullOrWhiteSpace($CancelFile)) {
-    if (-not [string]::IsNullOrWhiteSpace($env:TRANSCRIBEIT_CANCEL_FILE)) {
-        $CancelFile = $env:TRANSCRIBEIT_CANCEL_FILE
-        $script:CancelFileSource = 'env:TRANSCRIBEIT_CANCEL_FILE'
+    if (-not [string]::IsNullOrWhiteSpace($env:HERESAY_CANCEL_FILE)) {
+        $CancelFile = $env:HERESAY_CANCEL_FILE
+        $script:CancelFileSource = 'env:HERESAY_CANCEL_FILE'
     } else {
         $CancelFile = Join-Path $stateRoot 'run\cancel.flag'
         $script:CancelFileSource = 'SELF-DERIVED DEFAULT - nobody passed a path, so nothing may be polling it'
@@ -181,27 +181,27 @@ try {
 # ---------------------------------------------------------------------------
 if ($LingerSeconds -lt 0) {
     $LingerSeconds = 600
-    $envLinger = $env:TRANSCRIBEIT_UI_LINGER_SECONDS
+    $envLinger = $env:HERESAY_UI_LINGER_SECONDS
     if (-not [string]::IsNullOrWhiteSpace($envLinger)) {
         $parsed = 0
         if ([int]::TryParse($envLinger.Trim(), [ref]$parsed) -and $parsed -ge 0) {
             $LingerSeconds = $parsed
             Write-UiLog "linger from env: $LingerSeconds s"
         } else {
-            Write-UiLog "ignored unusable TRANSCRIBEIT_UI_LINGER_SECONDS='$envLinger'"
+            Write-UiLog "ignored unusable HERESAY_UI_LINGER_SECONDS='$envLinger'"
         }
     }
 }
 if ($AcknowledgedIdleSeconds -lt 0) {
     $AcknowledgedIdleSeconds = 1800
-    $envIdle = $env:TRANSCRIBEIT_UI_IDLE_SECONDS
+    $envIdle = $env:HERESAY_UI_IDLE_SECONDS
     if (-not [string]::IsNullOrWhiteSpace($envIdle)) {
         $parsedIdle = 0
         if ([int]::TryParse($envIdle.Trim(), [ref]$parsedIdle) -and $parsedIdle -ge 0) {
             $AcknowledgedIdleSeconds = $parsedIdle
             Write-UiLog "acknowledged-idle from env: $AcknowledgedIdleSeconds s"
         } else {
-            Write-UiLog "ignored unusable TRANSCRIBEIT_UI_IDLE_SECONDS='$envIdle'"
+            Write-UiLog "ignored unusable HERESAY_UI_IDLE_SECONDS='$envIdle'"
         }
     }
 }
@@ -246,7 +246,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
-namespace TranscribeIt.Ui
+namespace Heresay.Ui
 {
     [StructLayout(LayoutKind.Sequential)]
     internal struct FLASHWINFO
@@ -285,7 +285,7 @@ namespace TranscribeIt.Ui
         /// <summary>
         /// Flash the caption AND the taskbar button and KEEP flashing until the user
         /// actually brings the window to the foreground (FLASHW_TIMERNOFG). This is
-        /// the behaviour TranscribeIt was asked for: the user walks away, and the
+        /// the behaviour Heresay was asked for: the user walks away, and the
         /// taskbar keeps nagging until they come back - it does not blink 3 times
         /// while they are in another application and then give up.
         /// </summary>
@@ -398,7 +398,7 @@ namespace TranscribeIt.Ui
         {
             _thread = new Thread(RunStdin);
             _thread.IsBackground = true;
-            _thread.Name = "TranscribeIt.StdinPump";
+            _thread.Name = "Heresay.StdinPump";
             _thread.Start();
         }
 
@@ -406,7 +406,7 @@ namespace TranscribeIt.Ui
         {
             _thread = new Thread(delegate () { RunFile(path, pollMs); });
             _thread.IsBackground = true;
-            _thread.Name = "TranscribeIt.FilePump";
+            _thread.Name = "Heresay.FilePump";
             _thread.Start();
         }
 
@@ -472,7 +472,7 @@ try {
     throw
 }
 
-$script:Pump = [TranscribeIt.Ui.LinePump]::new()
+$script:Pump = [Heresay.Ui.LinePump]::new()
 $script:InputMode = 'stdin'
 if (-not [string]::IsNullOrWhiteSpace($Path)) {
     $script:InputMode = 'file'
@@ -500,11 +500,11 @@ Add-Type -AssemblyName System.Xaml
 # title bar). Must be set before the HWND exists; a failure costs the icon, nothing
 # else, so it never takes the UI down.
 try {
-    if (-not ('TranscribeIt.Ui.AppUserModelId' -as [Type])) {
+    if (-not ('Heresay.Ui.AppUserModelId' -as [Type])) {
         Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
 using System.Runtime.InteropServices;
 
-namespace TranscribeIt.Ui
+namespace Heresay.Ui
 {
     public static class AppUserModelId
     {
@@ -515,7 +515,7 @@ namespace TranscribeIt.Ui
 }
 '@
     }
-    $hr = [TranscribeIt.Ui.AppUserModelId]::SetCurrentProcessExplicitAppUserModelID('Heresay.TranscribeIt.Progress')
+    $hr = [Heresay.Ui.AppUserModelId]::SetCurrentProcessExplicitAppUserModelID('Heresay.Progress')
     if ($hr -ne 0) { Write-UiLog ('SetCurrentProcessExplicitAppUserModelID returned 0x{0:X8}' -f $hr) }
 } catch {
     Write-UiLog "AppUserModelID failed - taskbar button keeps the pwsh icon: $($_.Exception.Message)"
@@ -1136,7 +1136,7 @@ function Invoke-CompletionFlash {
         if ($script:S.Hwnd -eq [IntPtr]::Zero) {
             $script:S.Hwnd = ([System.Windows.Interop.WindowInteropHelper]::new($win)).Handle
         }
-        $ok = [TranscribeIt.Ui.Native]::FlashUntilFocused($script:S.Hwnd)
+        $ok = [Heresay.Ui.Native]::FlashUntilFocused($script:S.Hwnd)
         Write-UiLog "FlashWindowEx(FLASHW_ALL|FLASHW_TIMERNOFG) hwnd=$($script:S.Hwnd) returned $ok"
     } catch {
         Write-UiLog "flash failed: $($_.Exception.Message)"
@@ -1601,7 +1601,7 @@ function Invoke-LifeTick {
         # while they are looking at it, close it once they have plainly moved on.
         if ($AcknowledgedIdleSeconds -le 0) { return }
         try {
-            if ([TranscribeIt.Ui.Native]::IsForeground($script:S.Hwnd)) {
+            if ([Heresay.Ui.Native]::IsForeground($script:S.Hwnd)) {
                 $script:Life.LastTouch = $now
             }
         } catch { }
@@ -1619,7 +1619,7 @@ function Invoke-LifeTick {
     Write-UiLog ("auto-closing: phase '{0}', engine gone, {1}" -f $script:S.Phase, $why)
     try {
         if ($script:S.Flashed -and $script:S.Hwnd -ne [IntPtr]::Zero) {
-            [void][TranscribeIt.Ui.Native]::StopFlash($script:S.Hwnd)
+            [void][Heresay.Ui.Native]::StopFlash($script:S.Hwnd)
         }
     } catch { }
     try { $win.Close() } catch { Write-UiLog "auto-close failed: $($_.Exception.Message)" }
@@ -1666,7 +1666,7 @@ $win.Add_Activated({
     }
     if ($script:S.Flashed -and $script:S.Hwnd -ne [IntPtr]::Zero) {
         try {
-            [void][TranscribeIt.Ui.Native]::StopFlash($script:S.Hwnd)
+            [void][Heresay.Ui.Native]::StopFlash($script:S.Hwnd)
             Write-UiLog 'window activated by the user - flash cleared'
         } catch { }
     }
@@ -1721,7 +1721,7 @@ try {
     if ($script:S.Hwnd -eq [IntPtr]::Zero) {
         $script:S.Hwnd = ([System.Windows.Interop.WindowInteropHelper]::new($win)).Handle
     }
-    $raised = [TranscribeIt.Ui.Native]::RaiseWithoutFocus($script:S.Hwnd)
+    $raised = [Heresay.Ui.Native]::RaiseWithoutFocus($script:S.Hwnd)
     Write-UiLog "raised without focus: $raised"
 } catch { Write-UiLog "raise failed: $($_.Exception.Message)" }
 

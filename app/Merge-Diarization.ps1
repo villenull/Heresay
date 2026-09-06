@@ -771,7 +771,7 @@ if ($ContextJson -and (Test-Path -LiteralPath $ContextJson)) {
     speakerCountMode             = 'auto'
     elapsedSeconds               = 0
     realTimeFactor               = $null
-    toolVersion                  = '0.2.1'
+    toolVersion                  = '0.2.2'
   }
 }
 

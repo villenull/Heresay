@@ -46,7 +46,7 @@ foreach ($file in @(Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Filter 
 Write-Host 'Checking release version consistency'
 $configVersion = [string]((Get-Content -LiteralPath (Join-Path $repoRoot 'app\config.default.json') -Raw | ConvertFrom-Json).toolVersion)
 $fixtureVersion = [string]((Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\turns.example.json') -Raw | ConvertFrom-Json).processing.toolVersion)
-$installerText = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\Install-TranscribeIt.ps1') -Raw
+$installerText = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\Install-Heresay.ps1') -Raw
 $mergeText = Get-Content -LiteralPath (Join-Path $repoRoot 'app\Merge-Diarization.ps1') -Raw
 $installerVersion = if ($installerText -match "\[string\]\s+\`$Version\s*=\s*'([^']+)'" ) { $Matches[1] } else { '' }
 $mergeVersion = if ($mergeText -match "toolVersion\s*=\s*'([^']+)'" ) { $Matches[1] } else { '' }
@@ -74,7 +74,7 @@ foreach ($component in $components) {
 }
 
 . (Join-Path $repoRoot 'installer\Install-Common.ps1')
-$normalised = @(Resolve-TiDownloadManifest -Path $manifestPath)
+$normalised = @(Resolve-HeresayDownloadManifest -Path $manifestPath)
 $expectedOptional = @($components | Where-Object { $_.required -eq $false }).Count
 $actualOptional = @($normalised | Where-Object Optional).Count
 Test-Condition ($actualOptional -eq $expectedOptional) "installer saw $actualOptional optional components; manifest declares $expectedOptional"
@@ -100,6 +100,12 @@ try {
     try {
         $names = @($zip.Entries | ForEach-Object FullName)
         Test-Condition ($names -contains 'Heresay-Setup/THIRD_PARTY_NOTICES.md') 'package is missing THIRD_PARTY_NOTICES.md'
+        foreach ($requiredEntry in @(
+                'Heresay-Setup/installer/Install-Heresay.ps1',
+                'Heresay-Setup/installer/Uninstall-Heresay.ps1',
+                'Heresay-Setup/installer/assets/Heresay.ico')) {
+            Test-Condition ($names -contains $requiredEntry) "package is missing $requiredEntry"
+        }
         foreach ($leaf in @('SendTo-Heresay.ps1', 'Compress-ForWord.ps1', 'Save-AsPdf.ps1', 'manifest.example.json')) {
             Test-Condition (-not @($names | Where-Object { $_ -like "*/$leaf" }).Count) "package contains retired $leaf"
         }

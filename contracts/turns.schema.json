@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://transcribeit.local/contracts/turns.schema.json",
-  "title": "TranscribeIt transcript contract v1",
+  "$id": "https://heresay.local/contracts/turns.schema.json",
+  "title": "Heresay transcript contract v1",
   "description": "Produced by the transcription engine and consumed by the PDF renderer. Times are floating-point seconds from the start of the source media. Semantic changes require a schemaVersion bump.",
   "type": "object",
   "required": ["schemaVersion", "source", "processing", "speakers", "turns"],

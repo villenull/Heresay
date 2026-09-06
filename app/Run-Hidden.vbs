@@ -53,7 +53,7 @@ Next
 
 If pwshPath = "" Then
     ' No pwsh.exe in either location. Exit silently: this is a GUI-context shim
-    ' with nowhere to print an error. The installer preflight (Find-TiPwsh) checks
+    ' with nowhere to print an error. The installer preflight (Find-HeresayPwsh) checks
     ' the same locations before anything is registered, so a completed install
     ' never reaches this branch in practice.
     WScript.Quit 3

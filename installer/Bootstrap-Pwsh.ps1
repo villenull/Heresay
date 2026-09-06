@@ -66,7 +66,7 @@ function Test-PwshRuns {
 
 function Invoke-BootstrapDownload {
     <# Stream the URL to $Destination, printing progress every 20 MB. Uses the system
-       proxy with default credentials, mirroring Install-Common.ps1's Get-TiHttpClient,
+       proxy with default credentials, mirroring Install-Common.ps1's Get-HeresayHttpClient,
        so the current user's system proxy settings are honoured. #>
     param(
         [string] $Url,
@@ -74,7 +74,7 @@ function Invoke-BootstrapDownload {
     )
     $request = [System.Net.HttpWebRequest]::Create($Url)
     $request.AllowAutoRedirect = $true
-    $request.UserAgent = 'TranscribeIt-Bootstrap/1.0'
+    $request.UserAgent = 'Heresay-Bootstrap/1.0'
     $request.Timeout = 100000          # connect + first byte, ms
     $request.ReadWriteTimeout = 300000 # per read, ms
     try {

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Removes TranscribeIt, driven by install-manifest.json.
+    Removes Heresay, driven by install-manifest.json.
 
 .DESCRIPTION
     Removes exactly what the installer recorded creating - every file, every
@@ -26,8 +26,12 @@
 .PARAMETER RemoveUnlisted
     Also delete files under the install root that the manifest does not mention.
 
+.PARAMETER LogPath
+    Durable diagnostic log. Defaults to a timestamped Heresay-uninstall log in
+    the current user's temporary directory, outside the install tree being removed.
+
 .EXAMPLE
-    .\Uninstall-TranscribeIt.ps1 -WhatIf
+    .\Uninstall-Heresay.ps1 -WhatIf
 #>
 # ConfirmImpact is deliberately Medium, not High. With High, ShouldProcess prompts
 # because $ConfirmPreference defaults to High, and the prompt throws outright under
@@ -36,9 +40,10 @@
 # works for anyone who wants the prompt.
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
 param(
-    [string] $InstallRoot  = (Join-Path $env:LOCALAPPDATA 'Programs\TranscribeIt'),
+    [string] $InstallRoot  = (Join-Path $env:LOCALAPPDATA 'Programs\Heresay'),
     [string] $RegistryRoot,
     [string] $ManifestPath,
+    [string] $LogPath,
     [switch] $KeepLogs,
     [switch] $RemoveUnlisted,
     [switch] $KeepDownloadCache,
@@ -54,7 +59,12 @@ $ErrorActionPreference = 'Stop'
 $common = Join-Path $PSScriptRoot 'Install-Common.ps1'
 if (-not (Test-Path -LiteralPath $common)) { throw "Cannot find Install-Common.ps1 next to this script ($PSScriptRoot)." }
 . $common
-$script:TI_Quiet = [bool]$Quiet
+$script:HERESAY_Quiet = [bool]$Quiet
+
+if (-not $LogPath) {
+    $LogPath = Join-Path ([System.IO.Path]::GetTempPath()) ("Heresay-uninstall-{0:yyyyMMdd-HHmmss}-{1}.log" -f (Get-Date), $PID)
+}
+Initialize-HeresayLog -Path $LogPath -Activity 'uninstaller'
 
 # The installer stages a copy of this script INSIDE the install root. When that copy is
 # run, it must uninstall the install it belongs to - not whatever happens to live at the
@@ -69,11 +79,11 @@ if (-not $PSBoundParameters.ContainsKey('InstallRoot')) {
 }
 
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
-$dryRun = -not $PSCmdlet.ShouldProcess($InstallRoot, 'Uninstall TranscribeIt')
+$dryRun = -not $PSCmdlet.ShouldProcess($InstallRoot, 'Uninstall Heresay')
 
 if (-not $Quiet) {
     Write-Host ''
-    Write-Host "  $script:TI_ProductName uninstaller" -ForegroundColor White
+    Write-Host "  $script:HERESAY_ProductName uninstaller" -ForegroundColor White
     if ($dryRun) { Write-Host '  DRY RUN - nothing will be removed' -ForegroundColor Yellow }
     Write-Host "  target: $InstallRoot"
     Write-Host ''
@@ -83,10 +93,10 @@ $removed    = New-Object System.Collections.ArrayList
 $notRemoved = New-Object System.Collections.ArrayList
 $leftAlone  = New-Object System.Collections.ArrayList
 
-function Remove-TiPath {
+function Remove-HeresayPath {
     param([string] $Path, [string] $Kind = 'file')
     if (-not (Test-Path -LiteralPath $Path)) { return $true }
-    if ($dryRun) { Write-TiInfo "would remove $Kind`: $Path"; return $true }
+    if ($dryRun) { Write-HeresayInfo "would remove $Kind`: $Path"; return $true }
     try {
         Remove-Item -LiteralPath $Path -Force -Recurse -ErrorAction Stop
         [void]$removed.Add([pscustomobject]@{ Kind = $Kind; Path = $Path })
@@ -100,32 +110,36 @@ function Remove-TiPath {
 
 # =============================================================== 1. MANIFEST ==
 
-if (-not $ManifestPath) { $ManifestPath = Get-TiInstallManifestPath -InstallRoot $InstallRoot }
+if (-not $ManifestPath) { $ManifestPath = Get-HeresayInstallManifestPath -InstallRoot $InstallRoot }
 $manifest = $null
 if (Test-Path -LiteralPath $ManifestPath) {
     try {
-        $manifest = Read-TiJsonFile -Path $ManifestPath
-        Write-TiStep "Reading $ManifestPath"
-        Write-TiInfo "installed $($manifest.installedUtc) as version $($manifest.version)"
-        Write-TiInfo "records $(@($manifest.files).Count) file(s), $(@($manifest.registryKeys).Count) registry key(s)"
+        $manifest = Read-HeresayJsonFile -Path $ManifestPath
+        Write-HeresayStep "Reading $ManifestPath"
+        Write-HeresayInfo "installed $($manifest.installedUtc) as version $($manifest.version)"
+        Write-HeresayInfo "records $(@($manifest.files).Count) file(s), $(@($manifest.registryKeys).Count) registry key(s)"
     }
-    catch { Write-TiWarn "install-manifest.json is unreadable ($($_.Exception.Message))." }
+    catch { Write-HeresayWarn "install-manifest.json is unreadable ($($_.Exception.Message))." }
 }
 
 if (-not $manifest) {
     if (-not (Test-Path -LiteralPath $InstallRoot) -and -not $Fallback) {
+        Write-HeresayLog "nothing to do: '$InstallRoot' does not exist and there is no manifest"
         Write-Host "  Nothing to do: '$InstallRoot' does not exist and there is no manifest." -ForegroundColor Green
         Write-Host '  (This script is safe to run repeatedly.)'
+        Write-Host "  log: $LogPath"
         exit 0
     }
     if (-not $Fallback) {
-        Write-TiFail "No usable install-manifest.json at '$ManifestPath'."
+        Write-HeresayFail "No usable install-manifest.json at '$ManifestPath'."
         Write-Host ''
-        Write-Host '  Without the manifest this script cannot prove what belongs to TranscribeIt.' -ForegroundColor Yellow
+        Write-Host '  Without the manifest this script cannot prove what belongs to Heresay.' -ForegroundColor Yellow
         Write-Host '  Re-run with -Fallback to remove the well-known paths and registry keys instead.' -ForegroundColor Yellow
+        Write-HeresayLog 'uninstall stopped because no usable manifest was available' 'ERROR'
+        Write-Host "  log: $LogPath"
         exit 1
     }
-    Write-TiWarn 'Running in -Fallback mode: removing well-known locations rather than a recorded manifest. This is a best guess.'
+    Write-HeresayWarn 'Running in -Fallback mode: removing well-known locations rather than a recorded manifest. This is a best guess.'
 }
 
 # Registry root: prefer what the manifest recorded, so an install into a scratch root
@@ -141,11 +155,11 @@ if (-not $RegistryRoot) {
         if ($sample -and $sample -match '^(?<root>.*?)\\SystemFileAssociations') { $RegistryRoot = $Matches['root'] }
     }
 }
-Write-TiInfo "registry root: $RegistryRoot"
+Write-HeresayInfo "registry root: $RegistryRoot"
 
 # ========================================================== 2. SHELL VERB ==
 
-Write-TiStep 'Removing the Explorer right-click verb'
+Write-HeresayStep 'Removing the Explorer right-click verb'
 $regScript = @(
     (Join-Path $InstallRoot 'app\Register-ShellVerbs.ps1'),
     (Join-Path (Split-Path -Parent $PSScriptRoot) 'app\Register-ShellVerbs.ps1')
@@ -170,27 +184,27 @@ if ($regScript) {
             Select-Object -Unique)
         if ($found.Count) { $extraExts = $found }
     }
-    Write-TiInfo "extensions recorded by this install: $($extraExts -join ', ')"
+    Write-HeresayInfo "extensions recorded by this install: $($extraExts -join ', ')"
     $u = & $regScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -ExtraExtensions $extraExts -Unregister -WhatIf:$dryRun
     foreach ($r in $u.Removed) {
-        if ($r.Status -eq 'AlreadyAbsent') { Write-TiInfo "already gone: $($r.KeyPath)" }
-        else { Write-TiOk "$($r.Status): $($r.KeyPath)"; [void]$removed.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r.KeyPath }) }
+        if ($r.Status -eq 'AlreadyAbsent') { Write-HeresayInfo "already gone: $($r.KeyPath)" }
+        else { Write-HeresayOk "$($r.Status): $($r.KeyPath)"; [void]$removed.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r.KeyPath }) }
     }
     foreach ($r in $u.NotRemoved) {
-        Write-TiFail "could not remove $($r.KeyPath): $($r.Reason)"
+        Write-HeresayFail "could not remove $($r.KeyPath): $($r.Reason)"
         [void]$notRemoved.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r.KeyPath; Reason = $r.Reason })
         $verbRemovalOk = $false
     }
 }
 else {
-    Write-TiWarn 'Register-ShellVerbs.ps1 not found; removing the recorded keys directly.'
+    Write-HeresayWarn 'Register-ShellVerbs.ps1 not found; removing the recorded keys directly.'
     $keys = @()
-    if ($manifest) { $keys = @($manifest.registryKeys | Where-Object { $_ -like '*\shell\TranscribeIt*' }) }
+    if ($manifest) { $keys = @($manifest.registryKeys | Where-Object { $_ -like '*\shell\Heresay*' }) }
     if (-not $keys.Count) {
-        $keys = @('audio', 'video', '.amr', '.flv', '.caf') | ForEach-Object { "$RegistryRoot\SystemFileAssociations\$_\shell\TranscribeIt" }
+        $keys = @('audio', 'video', '.amr', '.flv', '.caf') | ForEach-Object { "$RegistryRoot\SystemFileAssociations\$_\shell\Heresay" }
     }
     foreach ($k in ($keys | Sort-Object -Property Length -Descending)) {
-        if (-not (Remove-TiPath -Path $k -Kind 'registry key')) { $verbRemovalOk = $false }
+        if (-not (Remove-HeresayPath -Path $k -Kind 'registry key')) { $verbRemovalOk = $false }
     }
 }
 
@@ -207,34 +221,34 @@ $recordVerbScript = @(
 if ($recordVerbScript) {
     $rv = & $recordVerbScript -InstallRoot $InstallRoot -RegistryRoot $RegistryRoot -Unregister -WhatIf:$dryRun
     foreach ($r in $rv.Removed) {
-        Write-TiOk "removed: $r"
+        Write-HeresayOk "removed: $r"
         [void]$removed.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r })
     }
     foreach ($r in $rv.NotRemoved) {
-        Write-TiFail "could not remove $($r.Path): $($r.Reason)"
+        Write-HeresayFail "could not remove $($r.Path): $($r.Reason)"
         [void]$notRemoved.Add([pscustomobject]@{ Kind = 'registry key'; Path = $r.Path; Reason = $r.Reason })
     }
 }
 else {
-    Write-TiWarn 'Register-RecordVerb.ps1 not found; removing the known background-verb keys directly.'
+    Write-HeresayWarn 'Register-RecordVerb.ps1 not found; removing the known background-verb keys directly.'
     foreach ($k in @(
             'HKCU:\Software\Classes\DesktopBackground\Shell\HeresayRecordConversation',
             'HKCU:\Software\Classes\Directory\Background\shell\HeresayRecordConversation')) {
-        Remove-TiPath -Path $k -Kind 'registry key' | Out-Null
+        Remove-HeresayPath -Path $k -Kind 'registry key' | Out-Null
     }
 }
 # ============================================================== 3. FILES ==
 
-Write-TiStep 'Removing installed files'
+Write-HeresayStep 'Removing installed files'
 $knownFiles = @()
 if ($manifest) { $knownFiles = @($manifest.files | ForEach-Object { $_.path }) }
 
 $removedFiles = 0
 foreach ($f in $knownFiles) {
     if ($KeepLogs -and $f -like (Join-Path $InstallRoot 'logs\*')) { [void]$leftAlone.Add($f); continue }
-    if (Test-Path -LiteralPath $f) { if (Remove-TiPath -Path $f -Kind 'file') { $removedFiles++ } }
+    if (Test-Path -LiteralPath $f) { if (Remove-HeresayPath -Path $f -Kind 'file') { $removedFiles++ } }
 }
-Write-TiOk "$removedFiles recorded file(s) removed"
+Write-HeresayOk "$removedFiles recorded file(s) removed"
 
 # Runtime artefacts the installer could not have recorded, because they are created
 # when the app runs: logs, the queue, batch event streams, the staged uninstaller.
@@ -247,7 +261,7 @@ $runtime = @(
 if (-not $KeepLogs) {
     $runtime += @(Get-ChildItem -LiteralPath (Join-Path $InstallRoot 'logs') -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
 }
-foreach ($r in $runtime) { Remove-TiPath -Path $r -Kind 'runtime file' | Out-Null }
+foreach ($r in $runtime) { Remove-HeresayPath -Path $r -Kind 'runtime file' | Out-Null }
 
 # --- Start Menu ---------------------------------------------------------------
 # The manifest's files[] already carries the shortcut this install created, and the
@@ -256,10 +270,10 @@ foreach ($r in $runtime) { Remove-TiPath -Path $r -Kind 'runtime file' | Out-Nul
 # therefore never recorded, or a current 'Heresay.lnk' left by an install whose manifest
 # was lost. Both live outside the install root, so nothing else here would ever reach
 # them, and a Start entry that outlives the app is the exact failure the Send To names
-# caused twice. Remove-TiPath honours the dry run and records what it removed.
+# caused twice. Remove-HeresayPath honours the dry run and records what it removed.
 $startMenuDir = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Microsoft\Windows\Start Menu\Programs'
 foreach ($lnkName in @('Heresay', 'Heresay - Transcribe new conversation')) {
-    Remove-TiPath -Path (Join-Path $startMenuDir ($lnkName + '.lnk')) -Kind 'Start Menu shortcut' | Out-Null
+    Remove-HeresayPath -Path (Join-Path $startMenuDir ($lnkName + '.lnk')) -Kind 'Start Menu shortcut' | Out-Null
 }
 
 # Anything still under the install root that the manifest never mentioned.
@@ -270,24 +284,24 @@ if (Test-Path -LiteralPath $InstallRoot) {
                   Where-Object { -not $known.ContainsKey($_.FullName.ToLowerInvariant()) })
     if ($unlisted.Count) {
         if ($RemoveUnlisted) {
-            Write-TiWarn "$($unlisted.Count) unlisted file(s) found; -RemoveUnlisted was given, removing them."
-            foreach ($u in $unlisted) { Remove-TiPath -Path $u.FullName -Kind 'unlisted file' | Out-Null }
+            Write-HeresayWarn "$($unlisted.Count) unlisted file(s) found; -RemoveUnlisted was given, removing them."
+            foreach ($u in $unlisted) { Remove-HeresayPath -Path $u.FullName -Kind 'unlisted file' | Out-Null }
         }
         else {
-            Write-TiWarn "$($unlisted.Count) file(s) under the install root are not in the manifest and were LEFT IN PLACE:"
+            Write-HeresayWarn "$($unlisted.Count) file(s) under the install root are not in the manifest and were LEFT IN PLACE:"
             foreach ($u in ($unlisted | Select-Object -First 15)) {
-                Write-TiInfo "    $($u.FullName)"
+                Write-HeresayInfo "    $($u.FullName)"
                 [void]$leftAlone.Add($u.FullName)
             }
-            if ($unlisted.Count -gt 15) { Write-TiInfo "    ... and $($unlisted.Count - 15) more" }
-            Write-TiInfo 'Re-run with -RemoveUnlisted to delete these too.'
+            if ($unlisted.Count -gt 15) { Write-HeresayInfo "    ... and $($unlisted.Count - 15) more" }
+            Write-HeresayInfo 'Re-run with -RemoveUnlisted to delete these too.'
         }
     }
 }
 
 # ========================================================= 4. DIRECTORIES ==
 
-Write-TiStep 'Removing empty directories'
+Write-HeresayStep 'Removing empty directories'
 $dirs = @()
 if ($manifest) { $dirs = @($manifest.directories) }
 if (-not $dirs.Count -and (Test-Path -LiteralPath $InstallRoot)) {
@@ -298,21 +312,21 @@ if (-not $dirs.Count -and (Test-Path -LiteralPath $InstallRoot)) {
 foreach ($d in ($dirs | Sort-Object -Property Length -Descending)) {
     if (-not (Test-Path -LiteralPath $d)) { continue }
     $remaining = @(Get-ChildItem -LiteralPath $d -Force -ErrorAction SilentlyContinue)
-    if ($remaining.Count -eq 0) { Remove-TiPath -Path $d -Kind 'directory' | Out-Null }
-    else { Write-TiInfo "kept (not empty): $d" ; [void]$leftAlone.Add($d) }
+    if ($remaining.Count -eq 0) { Remove-HeresayPath -Path $d -Kind 'directory' | Out-Null }
+    else { Write-HeresayInfo "kept (not empty): $d" ; [void]$leftAlone.Add($d) }
 }
 if ((Test-Path -LiteralPath $InstallRoot) -and @(Get-ChildItem -LiteralPath $InstallRoot -Force -ErrorAction SilentlyContinue).Count -eq 0) {
-    Remove-TiPath -Path $InstallRoot -Kind 'directory' | Out-Null
+    Remove-HeresayPath -Path $InstallRoot -Kind 'directory' | Out-Null
 }
 
 # --- download cache -----------------------------------------------------------
-$cache = Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads'
+$cache = Join-Path $env:LOCALAPPDATA 'Heresay\downloads'
 if (Test-Path -LiteralPath $cache) {
-    if ($KeepDownloadCache) { Write-TiInfo "download cache kept: $cache" ; [void]$leftAlone.Add($cache) }
+    if ($KeepDownloadCache) { Write-HeresayInfo "download cache kept: $cache" ; [void]$leftAlone.Add($cache) }
     else {
         $size = (Get-ChildItem -LiteralPath $cache -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-        Write-TiInfo "removing download cache ($(Format-TiBytes ([long]$size))): $cache"
-        Remove-TiPath -Path (Join-Path $env:LOCALAPPDATA 'TranscribeIt') -Kind 'download cache' | Out-Null
+        Write-HeresayInfo "removing download cache ($(Format-HeresayBytes ([long]$size))): $cache"
+        Remove-HeresayPath -Path (Join-Path $env:LOCALAPPDATA 'Heresay') -Kind 'download cache' | Out-Null
     }
 }
 
@@ -321,20 +335,20 @@ if (Test-Path -LiteralPath $cache) {
 # settings.json lives outside the install root and is never recorded in the
 # manifest, so nothing above would remove it. Delete it, then prune the
 # containing directory if it is now empty.
-$userStateDir     = Join-Path $env:LOCALAPPDATA 'TranscribeIt'
+$userStateDir     = Join-Path $env:LOCALAPPDATA 'Heresay'
 $userSettingsFile = Join-Path $userStateDir 'settings.json'
 if (Test-Path -LiteralPath $userSettingsFile) {
-    Write-TiInfo "removing per-user settings: $userSettingsFile"
-    Remove-TiPath -Path $userSettingsFile -Kind 'settings file' | Out-Null
+    Write-HeresayInfo "removing per-user settings: $userSettingsFile"
+    Remove-HeresayPath -Path $userSettingsFile -Kind 'settings file' | Out-Null
 }
 if ((Test-Path -LiteralPath $userStateDir) -and
     @(Get-ChildItem -LiteralPath $userStateDir -Force -ErrorAction SilentlyContinue).Count -eq 0) {
-    Write-TiInfo "removing empty per-user state directory: $userStateDir"
-    Remove-TiPath -Path $userStateDir -Kind 'directory' | Out-Null
+    Write-HeresayInfo "removing empty per-user state directory: $userStateDir"
+    Remove-HeresayPath -Path $userStateDir -Kind 'directory' | Out-Null
 }
 # ============================================================ 5. VERIFY ==
 
-Write-TiStep 'Verifying removal'
+Write-HeresayStep 'Verifying removal'
 $verifyOk = $true
 
 # Verify with plain Test-Path against the recorded key list, NOT by re-invoking
@@ -343,43 +357,47 @@ $verifyOk = $true
 if (-not $dryRun) {
     $checkKeys = New-Object System.Collections.ArrayList
     foreach ($s in @('audio', 'video')) {
-        [void]$checkKeys.Add([pscustomobject]@{ Kind = 'PerceivedType'; Subject = $s; KeyPath = "$RegistryRoot\SystemFileAssociations\$s\shell\TranscribeIt" })
+        [void]$checkKeys.Add([pscustomobject]@{ Kind = 'PerceivedType'; Subject = $s; KeyPath = "$RegistryRoot\SystemFileAssociations\$s\shell\Heresay" })
     }
     foreach ($e in $extraExts) {
-        [void]$checkKeys.Add([pscustomobject]@{ Kind = 'Extension'; Subject = $e; KeyPath = "$RegistryRoot\SystemFileAssociations\$e\shell\TranscribeIt" })
+        [void]$checkKeys.Add([pscustomobject]@{ Kind = 'Extension'; Subject = $e; KeyPath = "$RegistryRoot\SystemFileAssociations\$e\shell\Heresay" })
     }
     foreach ($c in $checkKeys) {
         if (Test-Path -LiteralPath $c.KeyPath) {
-            Write-TiFail "right-click entry STILL PRESENT for $($c.Kind) '$($c.Subject)': $($c.KeyPath)"
+            Write-HeresayFail "right-click entry STILL PRESENT for $($c.Kind) '$($c.Subject)': $($c.KeyPath)"
             $verifyOk = $false
         }
-        else { Write-TiOk "right-click entry gone for $($c.Kind) '$($c.Subject)'" }
+        else { Write-HeresayOk "right-click entry gone for $($c.Kind) '$($c.Subject)'" }
     }
 }
 
 if (-not $dryRun) {
     if (Test-Path -LiteralPath $InstallRoot) {
         $left = @(Get-ChildItem -LiteralPath $InstallRoot -Recurse -Force -ErrorAction SilentlyContinue)
-        if ($left.Count) { Write-TiWarn "$InstallRoot still exists with $($left.Count) item(s) (see the list above)." }
-        else { Write-TiOk 'install root is empty' }
+        if ($left.Count) { Write-HeresayWarn "$InstallRoot still exists with $($left.Count) item(s) (see the list above)." }
+        else { Write-HeresayOk 'install root is empty' }
     }
-    else { Write-TiOk "install root removed: $InstallRoot" }
+    else { Write-HeresayOk "install root removed: $InstallRoot" }
 }
 
 # =========================================================== 6. SUMMARY ==
 
 Write-Host ''
 if ($dryRun) {
+    Write-HeresayLog 'dry run complete; nothing was removed'
     Write-Host '  Dry run complete. Nothing was removed.' -ForegroundColor Yellow
+    Write-Host "  log: $LogPath"
     Write-Host ''
     exit 0
 }
 
 if ($notRemoved.Count -eq 0 -and $verifyOk) {
-    Write-Host "  $script:TI_ProductName removed. $($removed.Count) item(s) deleted." -ForegroundColor Green
+    Write-HeresayLog "uninstall finished successfully; $($removed.Count) item(s) deleted"
+    Write-Host "  $script:HERESAY_ProductName removed. $($removed.Count) item(s) deleted." -ForegroundColor Green
 }
 else {
-    Write-Host "  $script:TI_ProductName removal incomplete." -ForegroundColor Red
+    Write-HeresayLog "uninstall incomplete; $($notRemoved.Count) item(s) could not be removed; verification=$verifyOk" 'ERROR'
+    Write-Host "  $script:HERESAY_ProductName removal incomplete." -ForegroundColor Red
     foreach ($n in $notRemoved) { Write-Host "    could not remove $($n.Kind): $($n.Path)  ($($n.Reason))" -ForegroundColor Red }
     if (@($notRemoved | Where-Object { $_.Kind -eq 'file' }).Count) {
         Write-Host '    A file in use is the usual cause. Close any running transcription and try again.' -ForegroundColor Yellow
@@ -388,6 +406,7 @@ else {
 if ($leftAlone.Count) {
     Write-Host "  $($leftAlone.Count) item(s) intentionally left in place." -ForegroundColor Yellow
 }
+Write-Host "  log: $LogPath"
 Write-Host ''
 if ($notRemoved.Count -or -not $verifyOk) { exit 1 }
 exit 0

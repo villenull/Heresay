@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Renders a TranscribeIt transcript JSON document into a finished PDF.
+    Renders a Heresay transcript JSON document into a finished PDF.
 
 .DESCRIPTION
     Consumes the transcript contract in
@@ -113,7 +113,7 @@ $script:ExitCode = 0
 #  script reads them on every exit path, including the failures.
 # --------------------------------------------------------------------------
 $script:T0                = [System.Diagnostics.Stopwatch]::StartNew()
-$script:TelemetryDir      = Join-Path $env:LOCALAPPDATA 'TranscribeIt\render'
+$script:TelemetryDir      = Join-Path $env:LOCALAPPDATA 'Heresay\render'
 $script:TelemetryPath     = Join-Path $script:TelemetryDir 'render-timings.jsonl'
 $script:TelemetryWritten  = $false
 $script:Attempts          = [System.Collections.Generic.List[object]]::new()
@@ -631,13 +631,13 @@ if ($leftover.Count -gt 0) {
 # All five MUST be assigned before the try/finally below: under Set-StrictMode,
 # reading an unassigned $script: variable throws, and the finally block touches
 # SharedProfileLock on every exit path - including failures.
-$script:SharedProfileRoot        = Join-Path $env:LOCALAPPDATA 'TranscribeIt\render'
+$script:SharedProfileRoot        = Join-Path $env:LOCALAPPDATA 'Heresay\render'
 $script:SharedProfileDir         = Join-Path $script:SharedProfileRoot 'edge-profile'
 $script:SharedProfileLockPath    = Join-Path $script:SharedProfileRoot 'profile.lock'
 $script:SharedProfileLock        = $null
 $script:SharedProfileUnavailable = $false
 
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('TranscribeIt-render-' + [guid]::NewGuid().ToString('N'))
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('Heresay-render-' + [guid]::NewGuid().ToString('N'))
 
 # Self-healing sweep.
 #
@@ -653,7 +653,7 @@ $sweepSw = [System.Diagnostics.Stopwatch]::StartNew()
 try {
     $cutoff = [datetime]::UtcNow.AddSeconds(-$sweepCutoffSeconds)
     $stale = Get-ChildItem -Path ([System.IO.Path]::GetTempPath()) -Directory `
-                           -Filter 'TranscribeIt-render-*' -ErrorAction SilentlyContinue |
+                           -Filter 'Heresay-render-*' -ErrorAction SilentlyContinue |
              Where-Object { $_.LastWriteTimeUtc -lt $cutoff }
     $swept = 0
     foreach ($s in @($stale)) {

@@ -1,5 +1,5 @@
 <#
-    Generates installer\assets\TranscribeIt.ico.
+    Generates installer\assets\Heresay.ico.
 
     Written by hand as an uncompressed 32-bit BGRA icon rather than drawn with
     System.Drawing, because System.Drawing.Common is not part of the .NET 8 shared
@@ -12,7 +12,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string] $OutFile = (Join-Path $PSScriptRoot 'TranscribeIt.ico'),
+    [string] $OutFile = (Join-Path $PSScriptRoot 'Heresay.ico'),
     [int[]]  $Sizes = @(16, 20, 24, 32, 40, 48, 64)
 )
 

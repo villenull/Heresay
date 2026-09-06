@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "generatedUtc": "2026-08-26T20:32:21Z",
   "producedBy": "Heresay maintainers",
-  "consumedBy": "installer/Install-TranscribeIt.ps1",
+  "consumedBy": "installer/Install-Heresay.ps1",
   "targetPlatform": "windows-x64",
   "notes": [
     "Every sizeBytes and sha256 was computed from the downloaded artifact. The installer verifies hashes and refuses mismatches.",
@@ -98,7 +98,7 @@
       "license": "LGPL-3.0-or-later",
       "licenseUrl": "https://www.ffmpeg.org/legal.html",
       "licenseVerifiedFrom": "LICENSE.txt bundled in the archive is LGPL v3; ffmpeg -version shows no --enable-gpl and no --enable-nonfree, and --enable-version3 is present.",
-      "licenseNote": "LGPL variant chosen deliberately over the GPLv3 gyan.dev and BtbN GPL builds. TranscribeIt only decodes audio, so the GPL-only encoders (x264/x265) are not needed. Verified that aac, mp3, opus, flac, wmav2, alac and ac3 all decode, from mp4/m4a/mov/mkv/ogg/flac/asf/wav containers. BtbN build scripts are MIT; the ffmpeg binaries they produce are LGPLv3 here.",
+      "licenseNote": "LGPL variant chosen deliberately over the GPLv3 gyan.dev and BtbN GPL builds. Heresay only decodes audio, so the GPL-only encoders (x264/x265) are not needed. Verified that aac, mp3, opus, flac, wmav2, alac and ac3 all decode, from mp4/m4a/mov/mkv/ogg/flac/asf/wav containers. BtbN build scripts are MIT; the ffmpeg binaries they produce are LGPLv3 here.",
       "extract": [
         {
           "from": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0/bin/ffmpeg.exe",
@@ -368,7 +368,7 @@
       "licenseUrl": "https://huggingface.co/ggerganov/whisper.cpp",
       "licenseVerifiedFrom": "https://huggingface.co/api/models/ggerganov/whisper.cpp -> cardData.license = mit, gated = False. Upstream weights openai/whisper-large-v3-turbo are also MIT.",
       "sha256VerifiedFrom": "MEASURED 2026-08-27 from the file actually downloaded on this device (1624555275 bytes, streamed SHA-256), and cross-checked against lfs.oid in https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main?recursive=true. The two agree. Corroborated a third way: quantising this file reproduces the pinned q4_0 hash byte for byte, and that q4_0 was originally produced from an INDEPENDENT download of these weights - so both downloads were identical. Note the HTTP ETag on the resolve URL is 5a4b65b0...42ad and is NOT this hash; see notes[].",
-      "downloadNote": "MEASURED: this transfer is large enough that Zscaler drops it mid-flight - it failed once at 982 MB on the reference run and completed on the automatic Range resume. Invoke-TiDownload's resume path is therefore load-bearing for this component, not a nicety.",
+      "downloadNote": "MEASURED: this transfer is large enough that Zscaler drops it mid-flight - it failed once at 982 MB on the reference run and completed on the automatic Range resume. Invoke-HeresayDownload's resume path is therefore load-bearing for this component, not a nicety.",
       "extract": [
         {
           "from": "ggml-large-v3-turbo.bin",

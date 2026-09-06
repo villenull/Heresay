@@ -18,11 +18,11 @@
                                      coalesces them into one batch exactly as it does
                                      when Explorer starts one copy per selected item.
       Uninstall Heresay           -> a Yes/No confirmation, then a detached hidden pwsh
-                                     that runs <InstallRoot>\Uninstall-TranscribeIt.ps1
+                                     that runs <InstallRoot>\Uninstall-Heresay.ps1
                                      -Quiet and reports the outcome in a message box.
 
     The quality choice is saved the moment it is clicked to
-    %LOCALAPPDATA%\TranscribeIt\settings.json as
+    %LOCALAPPDATA%\Heresay\settings.json as
     { "quality": "fastest" | "moderate" | "thorough", "updatedUtc": "<ISO 8601>" }.
 
     THE QUALITY DESCRIPTIONS ARE A CONTRACT. Transcribe-Entry.ps1 and the recorder read
@@ -54,12 +54,12 @@
     for a checkout alike.
 
 .PARAMETER SettingsPath
-    Where the quality choice is stored. Default %LOCALAPPDATA%\TranscribeIt\settings.json.
+    Where the quality choice is stored. Default %LOCALAPPDATA%\Heresay\settings.json.
     Exists so the tests can point at a scratch file.
 
 .PARAMETER LogFile
     Where this window writes its few log lines. Default
-    %LOCALAPPDATA%\TranscribeIt\logs\home-<timestamp>.log, beside the recorder's.
+    %LOCALAPPDATA%\Heresay\logs\home-<timestamp>.log, beside the recorder's.
 
 .PARAMETER SelfTest
     TEST HOOK. Build the window without showing it, check that every named element
@@ -120,7 +120,7 @@ $AppDir      = Join-Path $InstallRoot 'app'
 
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) { $localAppData = $env:TEMP }
-$StateRoot = Join-Path $localAppData 'TranscribeIt'
+$StateRoot = Join-Path $localAppData 'Heresay'
 
 if ([string]::IsNullOrWhiteSpace($SettingsPath)) {
     $SettingsPath = Join-Path $StateRoot 'settings.json'
@@ -254,12 +254,12 @@ function Start-HeresayScript {
 #     waits for this PID, runs it, and reports in a message box of its own.
 # ---------------------------------------------------------------------------
 function Get-UninstallerPath {
-    <# The installer stages Uninstall-TranscribeIt.ps1 and Install-Common.ps1 at the
+    <# The installer stages Uninstall-Heresay.ps1 and Install-Common.ps1 at the
        install root, next to app\ and bin\. There is deliberately no fallback to the
        checkout's installer\ copy: run from there, that script would default to the
        real install under %LOCALAPPDATA% and remove it, which is not what a developer
        clicking around a checkout means. #>
-    return (Join-Path $InstallRoot 'Uninstall-TranscribeIt.ps1')
+    return (Join-Path $InstallRoot 'Uninstall-Heresay.ps1')
 }
 
 function Get-UninstallCommand {
@@ -273,8 +273,22 @@ function Get-UninstallCommand {
     $pwsh = Join-Path $PSHOME 'pwsh.exe'
     $q = { param([string] $s) return "'" + $s.Replace("'", "''") + "'" }
     $path = & $q $UninstallerPath
+    $root = & $q $InstallRoot
     $name = & $q $AppName
+    $logPath = Join-Path ([System.IO.Path]::GetTempPath()) ("Heresay-uninstall-{0:yyyyMMdd-HHmmss}-{1}.log" -f (Get-Date), $PID)
+    $log = & $q $logPath
     $nl   = '[Environment]::NewLine'
+
+    $cleanupOk     = & $q 'post-exit cleanup removed the empty install root'
+    $cleanupFailed = & $q 'post-exit cleanup could not remove the install root: '
+    $cleanupLeft   = & $q 'post-exit cleanup found files still present under the install root'
+    $cleanup = @(
+        ('if ($code -eq 0 -and (Test-Path -LiteralPath ' + $root + ')) {')
+        ('$remaining = @(Get-ChildItem -LiteralPath ' + $root + ' -Force -ErrorAction SilentlyContinue)')
+        ('if ($remaining.Count -eq 0) { try { Remove-Item -LiteralPath ' + $root + ' -Force -ErrorAction Stop; Add-Content -LiteralPath ' + $log + ' -Value ' + $cleanupOk + ' -Encoding utf8 } catch { $msg = ' + $cleanupFailed + ' + $_.Exception.Message; Add-Content -LiteralPath ' + $log + ' -Value $msg -Encoding utf8; $out = $out + ' + $nl + ' + $msg; $code = 1 } }')
+        ('else { $msg = ' + $cleanupLeft + '; Add-Content -LiteralPath ' + $log + ' -Value $msg -Encoding utf8; $out = $out + ' + $nl + ' + $msg; $code = 1 }')
+        '}'
+    ) -join '; '
 
     # Write-Host output lives on the information stream in pwsh 7, so plain 2>&1
     # would capture nothing of what the uninstaller prints. *>&1 folds every stream
@@ -285,13 +299,14 @@ function Get-UninstallCommand {
     $steps = @(
         'Set-Location -LiteralPath $env:TEMP',
         ('Wait-Process -Id {0} -ErrorAction SilentlyContinue' -f $PID),
-        ('try { $out = & ' + $path + ' -Quiet *>&1 | Out-String; $code = $LASTEXITCODE } catch { $out = ($_ | Out-String); $code = 1 }'),
+        ('try { $out = & ' + $path + ' -Quiet -LogPath ' + $log + ' *>&1 | Out-String; $code = $LASTEXITCODE } catch { $out = ($_ | Out-String); $code = 1; try { $out | Set-Content -LiteralPath ' + $log + ' -Encoding utf8 } catch { } }'),
         'if ($null -eq $code) { $code = 0 }',
+        $cleanup,
         'Add-Type -AssemblyName PresentationFramework',
-        ('if ($code -eq 0) { [void][System.Windows.MessageBox]::Show(' + (& $q "$AppName has been removed from this computer.") +
+        ('if ($code -eq 0) { [void][System.Windows.MessageBox]::Show((' + (& $q "$AppName has been removed from this computer.") + ' + ' + $nl + ' + ' + $nl + ' + ' + (& $q 'Uninstall log:') + ' + ' + $nl + ' + ' + $log + ')' +
             ', ' + $name + ", 'OK', 'Information') } else { " +
             '$t = $out.Trim(); if ($t.Length -gt 1500) { $t = $t.Substring(0, 1500) + ''...'' }; ' +
-            '[void][System.Windows.MessageBox]::Show((' + (& $q "$AppName could not be fully removed.") + ' + ' + $nl + ' + ' + $nl + ' + $t), ' +
+            '[void][System.Windows.MessageBox]::Show((' + (& $q "$AppName could not be fully removed.") + ' + ' + $nl + ' + ' + $nl + ' + $t + ' + $nl + ' + ' + $nl + ' + ' + (& $q 'Uninstall log:') + ' + ' + $nl + ' + ' + $log + '), ' +
             $name + ", 'OK', 'Error') }")
     )
     # No MessageBoxOptions on purpose. DefaultDesktopOnly looked like the way to keep
@@ -304,6 +319,7 @@ function Get-UninstallCommand {
     return [pscustomobject]@{
         Pwsh    = $pwsh
         Target  = $UninstallerPath
+        LogPath = $logPath
         List    = $list
         Text    = ('"{0}" {1}' -f $pwsh, (($list | ForEach-Object { '"{0}"' -f $_ }) -join ' '))
     }
@@ -471,7 +487,7 @@ Add-Type -AssemblyName System.Xaml
 # Must be set before the HWND exists. A failure costs the taskbar icon and nothing
 # else, so it never takes the window down.
 try {
-    $hr = [Heresay.Home.Native]::SetCurrentProcessExplicitAppUserModelID('Heresay.TranscribeIt.Home')
+    $hr = [Heresay.Home.Native]::SetCurrentProcessExplicitAppUserModelID('Heresay.Home')
     if ($hr -ne 0) { Write-HomeLog ('SetCurrentProcessExplicitAppUserModelID returned 0x{0:X8}' -f $hr) 'WARN' }
 } catch { Write-HomeLog "AppUserModelID failed - taskbar keeps the pwsh icon: $($_.Exception.Message)" 'WARN' }
 
@@ -708,11 +724,11 @@ function New-MediaColor([string] $hex) {
 }
 
 function Get-AppIcon {
-    <# The shipped .ico first (app\TranscribeIt.ico in an install; the checkout keeps
+    <# The shipped .ico first (app\Heresay.ico in an install; the checkout keeps
        it under installer\assets). If neither can be loaded, draw the app's slate
        tile at runtime so the title bar never shows the PowerShell icon. #>
-    foreach ($candidate in @((Join-Path $AppDir 'TranscribeIt.ico'),
-                             (Join-Path $InstallRoot 'installer\assets\TranscribeIt.ico'))) {
+    foreach ($candidate in @((Join-Path $AppDir 'Heresay.ico'),
+                             (Join-Path $InstallRoot 'installer\assets\Heresay.ico'))) {
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         try {
             $frame = [System.Windows.Media.Imaging.BitmapFrame]::Create(
@@ -842,6 +858,8 @@ if ($SelfTest) {
                        $r.Command -like '*pwsh.exe" "-WindowStyle" "Hidden" "-NoProfile" "-NonInteractive" "-ExecutionPolicy" "Bypass" "-Command" "*' -and
                        $r.Command -like ('*Wait-Process -Id {0} *' -f $PID) -and
                        $r.Command -like ('*& ''{0}'' -Quiet *' -f $presentPath.Replace("'", "''")) -and
+                       $r.Command -like '*-LogPath ''*Heresay-uninstall-*.log''*' -and
+                       $r.Command -like '*post-exit cleanup removed the empty install root*' -and
                        $r.Command -like '*has been removed from this computer*' -and
                        $r.Command -like '*could not be fully removed*' -and
                        (@($r.Command.ToCharArray() | Where-Object { $_ -eq '"' }).Count -eq 18)   # pwsh + 8 args quoted; none inside -Command

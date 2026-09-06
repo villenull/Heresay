@@ -170,9 +170,9 @@ $InstallRoot = Split-Path -Parent $AppDir
 
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) { $localAppData = $env:TEMP }
-$StateRoot = Join-Path $localAppData 'TranscribeIt'
+$StateRoot = Join-Path $localAppData 'Heresay'
 
-$TempRoot = Join-Path $env:TEMP 'TranscribeIt'
+$TempRoot = Join-Path $env:TEMP 'Heresay'
 $WorkDir  = Join-Path $TempRoot ('rec-{0}' -f ([guid]::NewGuid().ToString('N').Substring(0, 12)))
 $LockPath = Join-Path $TempRoot 'recorder.lock'
 
@@ -986,7 +986,7 @@ Add-Type -AssemblyName System.Xaml
 # otherwise, which would show the PowerShell icon whatever $win.Icon says. Must be
 # set before the HWND exists. A failure costs the icon and nothing else.
 try {
-    $hr = [Heresay.Rec.Native]::SetCurrentProcessExplicitAppUserModelID('Heresay.TranscribeIt.Recorder')
+    $hr = [Heresay.Rec.Native]::SetCurrentProcessExplicitAppUserModelID('Heresay.Recorder')
     if ($hr -ne 0) { Write-RecLog ('SetCurrentProcessExplicitAppUserModelID returned 0x{0:X8}' -f $hr) 'WARN' }
 } catch { Write-RecLog "AppUserModelID failed - taskbar keeps the pwsh icon: $($_.Exception.Message)" 'WARN' }
 

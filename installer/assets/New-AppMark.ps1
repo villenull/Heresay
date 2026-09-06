@@ -19,7 +19,7 @@
     BITMAPINFOHEADER plus an AND mask.
 
 .PARAMETER OutFile
-    Where to write the .ico. Defaults to TranscribeIt.ico beside this script.
+    Where to write the .ico. Defaults to Heresay.ico beside this script.
 
 .PARAMETER Sizes
     Icon frame sizes. 16/20/24/32 cover the title bar, taskbar and Explorer list
@@ -27,7 +27,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string] $OutFile = (Join-Path $PSScriptRoot 'TranscribeIt.ico'),
+    [string] $OutFile = (Join-Path $PSScriptRoot 'Heresay.ico'),
     [int[]]  $Sizes   = @(16, 20, 24, 32, 48, 64, 128, 256),
     [string] $SourceScript = (Join-Path $PSScriptRoot '..\..\app\Progress.ps1')
 )

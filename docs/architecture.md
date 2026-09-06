@@ -1,9 +1,9 @@
 # Architecture notes
 
-Heresay is the public product name. `TranscribeIt` remains in internal paths,
-registry verb identifiers, and manifest fields for upgrade compatibility with
-earlier releases. Renaming those identifiers requires a migration that removes the
-old shell registrations and preserves existing per-user settings.
+Heresay is both the public product name and the internal product identifier. Installed
+files live under `%LOCALAPPDATA%\Programs\Heresay`, mutable state lives under
+`%LOCALAPPDATA%\Heresay`, and Explorer shell verbs use `Heresay` as their registry
+identifier.
 
 The application is split into three boundaries:
 
@@ -14,4 +14,3 @@ The application is split into three boundaries:
 The stable data boundaries live in `contracts/`. Times are floating-point seconds
 from the beginning of the source media. The launcher exposes one monotonic batch
 progress stream even though the engine processes one file at a time.
-

@@ -23,7 +23,7 @@ pwsh -NoProfile -File build\Make-Distribution.ps1 -NoZip
 |---|---|---|
 | `-OutputDir` | `build\dist` | Where the `Heresay-Setup\` staging folder and the zip land. |
 | `-IncludeDownloadCache` | off | Bundle the component cache so the install needs no network. |
-| `-DownloadCacheSource` | `%LOCALAPPDATA%\TranscribeIt\downloads` | Where cache files come from. The default mirrors the installer's own `-DownloadCache` default, so a machine that has installed once can build the offline package with no extra flags. |
+| `-DownloadCacheSource` | `%LOCALAPPDATA%\Heresay\downloads` | Where cache files come from. The default mirrors the installer's own `-DownloadCache` default, so a machine that has installed once can build the offline package with no extra flags. |
 | `-ZipName` | `Heresay-Setup.zip` / `Heresay-Setup-offline.zip` | Zip file name; the offline name is picked automatically when the cache is bundled. |
 | `-NoZip` | off | Stage the folder only. |
 

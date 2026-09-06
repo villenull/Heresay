@@ -1,7 +1,7 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-  TranscribeIt engine entry point. Turns an audio/video file into a speaker-
+  Heresay engine entry point. Turns an audio/video file into a speaker-
   separated transcript, 100% locally, and hands off to the PDF renderer.
 
 .DESCRIPTION
@@ -91,7 +91,7 @@ $script:Out.AutoFlush = $true
 
 $AppRoot  = Split-Path -Parent $PSCommandPath
 $InstRoot = Split-Path -Parent $AppRoot
-$DataRoot = Join-Path $env:LOCALAPPDATA 'TranscribeIt'
+$DataRoot = Join-Path $env:LOCALAPPDATA 'Heresay'
 
 $script:LogDir = Join-Path $DataRoot 'logs'
 New-Item -ItemType Directory -Force -Path $script:LogDir | Out-Null
@@ -352,7 +352,7 @@ $embModel = Join-Path $MODELDIR ($cfg.diarization.embeddingModel   -replace '/',
 $vadModel = Join-Path $MODELDIR ($cfg.transcription.vadModel       -replace '/', '\')
 
 Stop-Stage 'init'
-Write-Log "TranscribeIt $($cfg.toolVersion) | model=$modelName threads=$nThreads diarThreads=$diarThreads lang=$language"
+Write-Log "Heresay $($cfg.toolVersion) | model=$modelName threads=$nThreads diarThreads=$diarThreads lang=$language"
 
 # ------------------------------------------------------- progress / ETA ------
 
@@ -555,21 +555,21 @@ function Invoke-Tool {
       }
       1260 {
         throw (New-Failure -Stage $Tag -Kind 'binaryBlockedByPolicy' -InstallLevel `
-          -Message "$ComponentName was blocked by a software restriction policy on this computer. Please send the log file to IT and ask for TranscribeIt to be allowed." -Detail $detail)
+          -Message "$ComponentName was blocked by a software restriction policy on this computer. Please send the log file to IT and ask for Heresay to be allowed." -Detail $detail)
       }
       { $_ -in @(2, 3) } {
         # the file passed Test-Path a moment ago, so this is a dependency or a
         # path Windows itself cannot open
         if ($FilePath.Length -ge 250) {
           throw (New-Failure -Stage $Tag -Kind 'pathTooLong' -InstallLevel `
-            -Message "TranscribeIt is installed in a folder whose path is too long for Windows to launch its programs ($($FilePath.Length) characters). Please reinstall it somewhere shorter." -Detail $detail)
+            -Message "Heresay is installed in a folder whose path is too long for Windows to launch its programs ($($FilePath.Length) characters). Please reinstall it somewhere shorter." -Detail $detail)
         }
         throw (New-Failure -Stage $Tag -Kind 'dependencyMissing' -InstallLevel `
-          -Message "$ComponentName is present but could not start because a supporting file is missing. The installation looks incomplete - please reinstall TranscribeIt." -Detail $detail)
+          -Message "$ComponentName is present but could not start because a supporting file is missing. The installation looks incomplete - please reinstall Heresay." -Detail $detail)
       }
       { $_ -in @(193, 216) } {
         throw (New-Failure -Stage $Tag -Kind 'badImage' -InstallLevel `
-          -Message "$ComponentName is not compatible with this computer, or the file is damaged. Please reinstall TranscribeIt." -Detail $detail)
+          -Message "$ComponentName is not compatible with this computer, or the file is damaged. Please reinstall Heresay." -Detail $detail)
       }
       default {
         throw (New-Failure -Stage $Tag -Kind 'binaryBlocked' -InstallLevel `
@@ -664,7 +664,7 @@ function Assert-ModelUsable {
   param([string]$FilePath, [string]$Label)
   if (-not (Test-Path -LiteralPath $FilePath)) {
     throw (New-Failure -Stage 'transcribe' -Kind 'modelMissing' -InstallLevel `
-      -Message "The $Label file is missing. The installation looks incomplete - please reinstall TranscribeIt." `
+      -Message "The $Label file is missing. The installation looks incomplete - please reinstall Heresay." `
       -Detail $FilePath)
   }
   # a quantised whisper model is tens of MB at minimum; anything smaller is a
@@ -672,7 +672,7 @@ function Assert-ModelUsable {
   $len = (Get-Item -LiteralPath $FilePath).Length
   if ($len -lt 10MB) {
     throw (New-Failure -Stage 'transcribe' -Kind 'modelTruncated' -InstallLevel `
-      -Message "The $Label file is damaged or was only partly downloaded ($([math]::Round($len/1MB,1)) MB). Please reinstall TranscribeIt." `
+      -Message "The $Label file is damaged or was only partly downloaded ($([math]::Round($len/1MB,1)) MB). Please reinstall Heresay." `
       -Detail "$FilePath is $len bytes")
   }
 }
@@ -866,7 +866,7 @@ function Invoke-Transcribe {
     $err = $r.StdErr
     if ($err -match 'failed to load|whisper_init.*failed|invalid model|bad magic|unknown model') {
       throw (New-Failure -Stage 'transcribe' -Kind 'modelTruncated' -InstallLevel `
-        -Message 'The speech recognition model could not be loaded; it is damaged or incomplete. Please reinstall TranscribeIt.' `
+        -Message 'The speech recognition model could not be loaded; it is damaged or incomplete. Please reinstall Heresay.' `
         -Detail (($err -split "`r?`n" | Select-Object -Last 4) -join ' | '))
     }
     if ($err -match 'alloc|out of memory|bad_alloc|ggml_new_tensor') {
@@ -1371,7 +1371,7 @@ for ($i = 0; $i -lt $total; $i++) {
 
   # ASCII-only working directory: whisper.cpp and sherpa-onnx take narrow
   # paths, so they never see the user's non-ASCII filename
-  $work = Join-Path $env:TEMP ("TranscribeIt\job-" + [guid]::NewGuid().ToString('N'))
+  $work = Join-Path $env:TEMP ("Heresay\job-" + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Force -Path $work | Out-Null
   $wav       = Join-Path $work 'audio.wav'
   $prefix    = Join-Path $work 'asr'

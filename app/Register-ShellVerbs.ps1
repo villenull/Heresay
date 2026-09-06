@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-    Registers (or removes) the TranscribeIt Windows Explorer right-click verb.
+    Registers (or removes) the Heresay Windows Explorer right-click verb.
 
 .DESCRIPTION
     User-scope only. Never touches HKLM and never requires elevation.
 
     Registration strategy: PerceivedType, not a hard-coded extension list.
 
-        <RegistryRoot>\SystemFileAssociations\audio\shell\TranscribeIt\command
-        <RegistryRoot>\SystemFileAssociations\video\shell\TranscribeIt\command
+        <RegistryRoot>\SystemFileAssociations\audio\shell\Heresay\command
+        <RegistryRoot>\SystemFileAssociations\video\shell\Heresay\command
 
     HKCU\Software\Classes merges over HKLM\Software\Classes into the virtual
     HKEY_CLASSES_ROOT view, so a user-scope write is all that is needed. Registering
@@ -18,7 +18,7 @@
 
     A small explicit per-extension list covers formats that ship with no
     PerceivedType (.amr, .flv, .caf on the target machine). Those are registered at
-    <RegistryRoot>\SystemFileAssociations\<.ext>\shell\TranscribeIt, which adds a verb
+    <RegistryRoot>\SystemFileAssociations\<.ext>\shell\Heresay, which adds a verb
     without hijacking the extension's ProgID or its default "Open with" handler.
 
     The global '*' key is deliberately NOT used - that would put our verb on every
@@ -27,7 +27,7 @@
 .PARAMETER RegistryRoot
     Root under which SystemFileAssociations is written. Defaults to the live
     per-user class root. During development pass a scratch root, e.g.
-    'HKCU:\Software\TranscribeIt-TEST\Classes', so the real right-click menu is
+    'HKCU:\Software\Heresay-TEST\Classes', so the real right-click menu is
     untouched.
 
 .PARAMETER Unregister
@@ -44,13 +44,13 @@
     uninstall is provable rather than guesswork.
 
 .EXAMPLE
-    .\Register-ShellVerbs.ps1 -RegistryRoot 'HKCU:\Software\TranscribeIt-TEST\Classes' -WhatIf
+    .\Register-ShellVerbs.ps1 -RegistryRoot 'HKCU:\Software\Heresay-TEST\Classes' -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
 param(
-    [string]   $InstallRoot    = (Join-Path $env:LOCALAPPDATA 'Programs\TranscribeIt'),
+    [string]   $InstallRoot    = (Join-Path $env:LOCALAPPDATA 'Programs\Heresay'),
     [string]   $RegistryRoot   = 'HKCU:\Software\Classes',
-    [string]   $VerbName       = 'TranscribeIt',
+    [string]   $VerbName       = 'Heresay',
     [string]   $MenuText       = 'Transcribe in PDF',
     [string[]] $PerceivedTypes = @('audio', 'video'),
     [string[]] $ExtraExtensions,
@@ -98,7 +98,7 @@ function Resolve-RegistryRoot {
     elseif ($p -match '^HKCU\\(.*)$')                    { $p = "HKCU:\$($Matches[1])" }
 
     if ($p -match '^(HKLM:|HKEY_LOCAL_MACHINE|Registry::HKEY_LOCAL_MACHINE|HKCR:|Registry::HKEY_CLASSES_ROOT)') {
-        throw "RegistryRoot '$Path' is machine-scope. TranscribeIt installs user-scope only; writing there needs admin rights this account does not have."
+        throw "RegistryRoot '$Path' is machine-scope. Heresay installs user-scope only; writing there needs admin rights this account does not have."
     }
     if ($p -notmatch '^HKCU:\\') {
         throw "RegistryRoot '$Path' must live under HKEY_CURRENT_USER (got '$p')."
@@ -158,7 +158,7 @@ function Resolve-PwshPath {
     $cmd = Get-Command pwsh.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($cmd) { $candidates = @($cmd.Source) + $candidates }
     foreach ($c in $candidates) { if ($c -and (Test-Path -LiteralPath $c)) { return (Resolve-Path -LiteralPath $c).ProviderPath } }
-    throw 'pwsh.exe (PowerShell 7) not found. TranscribeIt requires it for the shell verb command.'
+    throw 'pwsh.exe (PowerShell 7) not found. Heresay requires it for the shell verb command.'
 }
 
 function Get-PerceivedTypeExtensions {
@@ -313,14 +313,14 @@ function Invoke-ShellAssocChanged {
        take a minute (or a re-login) to appear. #>
     if ($script:AssocNotified) { return }
     try {
-        if (-not ('TranscribeIt.ShellNotify' -as [type])) {
-            Add-Type -Namespace 'TranscribeIt' -Name 'ShellNotify' -MemberDefinition @'
+        if (-not ('Heresay.ShellNotify' -as [type])) {
+            Add-Type -Namespace 'Heresay' -Name 'ShellNotify' -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
 public static extern void SHChangeNotify(int wEventId, uint uFlags, System.IntPtr dwItem1, System.IntPtr dwItem2);
 '@ -ErrorAction Stop
         }
         # SHCNE_ASSOCCHANGED = 0x08000000, SHCNF_IDLIST = 0x0000
-        [TranscribeIt.ShellNotify]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+        [Heresay.ShellNotify]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
         $script:AssocNotified = $true
         Write-Verbose 'SHChangeNotify(SHCNE_ASSOCCHANGED) sent.'
     }
@@ -330,7 +330,7 @@ public static extern void SHChangeNotify(int wEventId, uint uFlags, System.IntPt
 function Resolve-IconValue {
     param([string] $Explicit, [string] $Root, [string] $Pwsh)
     if ($Explicit) { return $Explicit }
-    $appIcon = Join-Path $Root 'app\TranscribeIt.ico'
+    $appIcon = Join-Path $Root 'app\Heresay.ico'
     if (Test-Path -LiteralPath $appIcon) { return "$appIcon,0" }
     # Honest fallback: the icon of the process that actually runs. Never invent a
     # shell32/imageres resource index - a wrong index renders as a blank rectangle.

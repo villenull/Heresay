@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    The Heresay setup window: a graphical installer wizard for TranscribeIt.
+    The Heresay setup window: a graphical installer wizard for Heresay.
 
 .DESCRIPTION
     Launched hidden by `Install-Heresay.vbs` as:
@@ -13,15 +13,15 @@
 
       1. installer\Bootstrap-Pwsh.ps1 under powershell.exe, when PowerShell 7 is
          absent (its "  ... 20 MB of 101 MB" lines drive the progress bar), then
-      2. installer\Install-TranscribeIt.ps1 under the found pwsh 7, with
+      2. installer\Install-Heresay.ps1 under the found pwsh 7, with
          -SourceRoot <repo root> and -DownloadCache <root>\download-cache when
          that folder is present in an offline package,
          plus any arguments this script itself received, passed through verbatim
          (testers use -InstallRoot/-RegistryRoot/-Skip*/-WhatIf; users pass none).
 
-    TI_INSTALL_GUI=1 is set on this process, so children inherit it and
-    Install-Common.ps1's Invoke-TiDownload emits machine-readable
-    "#TIDL|<name>|<written>|<total>" download-progress lines (throttled there).
+    HERESAY_INSTALL_GUI=1 is set on this process, so children inherit it and
+    Install-Common.ps1's Invoke-HeresayDownload emits machine-readable
+    "#HERESAYDL|<name>|<written>|<total>" download-progress lines (throttled there).
 
     stdout and stderr of each child are read on dedicated background runspaces
     into a lock-free queue (a synchronous read on the UI thread would deadlock the
@@ -42,7 +42,7 @@ try {
 
 # ------------------------------------------------------------------ environment --
 
-# Everything this script received is passed through to Install-TranscribeIt.ps1
+# Everything this script received is passed through to Install-Heresay.ps1
 # verbatim. Deliberately a plain (non-advanced) script: an advanced param() block
 # would reject -WhatIf instead of forwarding it.
 $script:PassArgs = @()
@@ -55,14 +55,14 @@ $script:HasOffline    = Test-Path -LiteralPath $script:DownloadCache
 
 # Where the install lands - only used for display and for finding the log folder.
 # Honour a tester's -InstallRoot override so both point at the right place.
-$script:InstallRoot = Join-Path $env:LOCALAPPDATA 'Programs\TranscribeIt'
+$script:InstallRoot = Join-Path $env:LOCALAPPDATA 'Programs\Heresay'
 for ($i = 0; $i -lt $script:PassArgs.Count - 1; $i++) {
     if ($script:PassArgs[$i] -eq '-InstallRoot') { $script:InstallRoot = $script:PassArgs[$i + 1] }
 }
 
-# The gate for Install-Common.ps1's #TIDL lines. Set on OUR environment so every
+# The gate for Install-Common.ps1's #HERESAYDL lines. Set on OUR environment so every
 # child process inherits it; console installs never see it, so they are untouched.
-$env:TI_INSTALL_GUI = '1'
+$env:HERESAY_INSTALL_GUI = '1'
 # pwsh 7 respects NO_COLOR and renders plain text when redirected; belt and braces
 # so no ANSI escapes ever reach the details pane.
 $env:NO_COLOR = '1'
@@ -75,11 +75,11 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 # groups this window under powershell.exe and shows its icon, which looks like
 # setup fails early. A failure costs only the optional display name.
 try {
-    if (-not ('TranscribeIt.Setup.AppUserModelId' -as [Type])) {
+    if (-not ('Heresay.Setup.AppUserModelId' -as [Type])) {
         Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
 using System.Runtime.InteropServices;
 
-namespace TranscribeIt.Setup
+namespace Heresay.Setup
 {
     public static class AppUserModelId
     {
@@ -90,7 +90,7 @@ namespace TranscribeIt.Setup
 }
 '@
     }
-    [void][TranscribeIt.Setup.AppUserModelId]::SetCurrentProcessExplicitAppUserModelID('Heresay.TranscribeIt.Setup')
+    [void][Heresay.Setup.AppUserModelId]::SetCurrentProcessExplicitAppUserModelID('Heresay.Setup')
 }
 catch { }
 
@@ -105,7 +105,7 @@ function Format-Bytes {
 }
 
 function Find-Pwsh7 {
-    # Same order as Install-Common.ps1's Find-TiPwsh
+    # Same order as Install-Common.ps1's Find-HeresayPwsh
     # (minus $PSHOME, which is Windows PowerShell here): Program Files, then the
     # per-user portable copy Bootstrap-Pwsh.ps1 installs, then PATH.
     $candidates = @(
@@ -611,7 +611,7 @@ $script:S = @{
 
 # Overall progress budget. Downloads carry the weight: on a first online install
 # they dominate wall-clock time (~2.7 GB), with quantisation of the default model
-# second. Stage names are matched by prefix against Write-TiStep's '==> ' lines.
+# second. Stage names are matched by prefix against Write-HeresayStep's '==> ' lines.
 $script:DL_START  = 14.0
 $script:DL_SPAN   = 56.0   # downloads own 14% -> 70%
 $script:BOOT_SPAN = 8.0    # the pwsh bootstrap owns 0% -> 8% when it runs
@@ -671,7 +671,7 @@ function Hide-FileProgress {
 }
 
 function Update-FileProgress {
-    # One '#TIDL|name|written|total' line from Invoke-TiDownload.
+    # One '#HERESAYDL|name|written|total' line from Invoke-HeresayDownload.
     param([string] $Name, [long] $Written, [long] $Total)
     if ($Total -gt 0) {
         $frac = $Written / [double]$Total
@@ -694,7 +694,7 @@ function Read-ChildLine {
 
     # Machine channel first. Not appended to the details pane: it IS the per-file
     # progress bar's data feed, and thousands of them would drown the useful text.
-    if ($Line.StartsWith('#TIDL|')) {
+    if ($Line.StartsWith('#HERESAYDL|')) {
         $parts = $Line.Split('|')
         if ($parts.Count -ge 4) {
             $w = [long]0; $t = [long]0
@@ -869,7 +869,7 @@ function Start-Installer {
     $UI.TbStatus.Text = ''
     $UI.BarOverall.IsIndeterminate = $true
     try { $win.TaskbarItemInfo.ProgressState = [System.Windows.Shell.TaskbarItemProgressState]::Indeterminate } catch { }
-    $installer = Join-Path $script:InstallerDir 'Install-TranscribeIt.ps1'
+    $installer = Join-Path $script:InstallerDir 'Install-Heresay.ps1'
     # -SourceRoot is the folder holding app\ and installer\; -DownloadCache is
     # supplied only when the embedded package includes an offline cache.
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installer,
@@ -965,8 +965,8 @@ function Show-Result {
 }
 
 function Open-LogFolder {
-    # Install-TranscribeIt.ps1 logs to %TEMP%\TranscribeIt-install-*.log during
-    # preflight and relocates to <InstallRoot>\logs\install.log via Move-TiLog
+    # Install-Heresay.ps1 logs to %TEMP%\Heresay-install-*.log during
+    # preflight and relocates to <InstallRoot>\logs\install.log via Move-HeresayLog
     # once the layout exists - so prefer that folder, fall back to %TEMP%.
     $logDir = Join-Path $script:InstallRoot 'logs'
     $target = $env:TEMP

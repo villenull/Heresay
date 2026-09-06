@@ -12,7 +12,7 @@ param(
     [string] $OutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'Install-Heresay.vbs'),
     [string] $DistributionOutputDir = (Join-Path $PSScriptRoot 'dist'),
     [switch] $IncludeDownloadCache,
-    [string] $DownloadCacheSource = (Join-Path $env:LOCALAPPDATA 'TranscribeIt\downloads')
+    [string] $DownloadCacheSource = (Join-Path $env:LOCALAPPDATA 'Heresay\downloads')
 )
 
 Set-StrictMode -Version Latest
