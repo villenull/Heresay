@@ -43,6 +43,18 @@ foreach ($file in @(Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Filter 
     }
 }
 
+Write-Host 'Checking release version consistency'
+$configVersion = [string]((Get-Content -LiteralPath (Join-Path $repoRoot 'app\config.default.json') -Raw | ConvertFrom-Json).toolVersion)
+$fixtureVersion = [string]((Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\turns.example.json') -Raw | ConvertFrom-Json).processing.toolVersion)
+$installerText = Get-Content -LiteralPath (Join-Path $repoRoot 'installer\Install-TranscribeIt.ps1') -Raw
+$mergeText = Get-Content -LiteralPath (Join-Path $repoRoot 'app\Merge-Diarization.ps1') -Raw
+$installerVersion = if ($installerText -match "\[string\]\s+\`$Version\s*=\s*'([^']+)'" ) { $Matches[1] } else { '' }
+$mergeVersion = if ($mergeText -match "toolVersion\s*=\s*'([^']+)'" ) { $Matches[1] } else { '' }
+Test-Condition (-not [string]::IsNullOrWhiteSpace($configVersion)) 'app/config.default.json has no toolVersion'
+Test-Condition ($installerVersion -eq $configVersion) "installer version '$installerVersion' does not match config version '$configVersion'"
+Test-Condition ($mergeVersion -eq $configVersion) "diarization version '$mergeVersion' does not match config version '$configVersion'"
+Test-Condition ($fixtureVersion -eq $configVersion) "turns fixture version '$fixtureVersion' does not match config version '$configVersion'"
+
 Write-Host 'Checking transcript fixture against its schema'
 $turnsJson = Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\turns.example.json') -Raw
 $turnsSchema = Join-Path $repoRoot 'contracts\turns.schema.json'

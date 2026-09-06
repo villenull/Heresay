@@ -1,7 +1,7 @@
 {
   "_comment": "Engine defaults. The installer copies this to the install root as config.json; user edits there survive upgrades. Paths are relative to the install root.",
   "configVersion": 1,
-  "toolVersion": "0.2.0",
+  "toolVersion": "0.2.1",
 
   "paths": {
     "ffmpeg": "vendor/ffmpeg/ffmpeg.exe",

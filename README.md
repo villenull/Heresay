@@ -64,7 +64,7 @@ Open Heresay from the Start Menu to choose a level. The setting applies to files
 ## Install
 
 1. Download **[`Install-Heresay.vbs`](https://github.com/villenull/Heresay/releases/latest/download/Install-Heresay.vbs)**.
-2. Read the [installer source](Install-Heresay.vbs) and compare its SHA256 with the checksum in the release notes.
+2. Open the [release notes](https://github.com/villenull/Heresay/releases/latest), read the tag-pinned installer source linked there, and compare its SHA256 with the published checksum.
 3. Double-click it, then click **Install**. The first install downloads approximately 2.7 GB.
 
 > **SmartScreen:** the installer is unsigned, so Windows may warn you. Source review and the published checksum are the available mitigations. If you choose to continue, click **More info**, then **Run anyway**.
@@ -73,7 +73,7 @@ Upgrading from v0.1 uses the same installer and preserves your recordings and tr
 
 ## What the installer does
 
-[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 859-line installer; read it before you run it.
+[`Install-Heresay.vbs`](Install-Heresay.vbs) is the complete 859-line development version of the installer. For an exact match to a downloaded release, use the tag-pinned source link in that release's notes.
 
 1. Extracts its embedded package to `%TEMP%\Heresay-Setup-*` and starts `installer\Install-Gui.ps1`.
 2. If needed, downloads a pinned PowerShell 7 release, verifies its SHA256, and installs it under `%LOCALAPPDATA%\Programs\PowerShell7`.

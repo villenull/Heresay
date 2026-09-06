@@ -18,7 +18,7 @@
     "speakerCountMode": "auto",
     "elapsedSeconds": 651.8,
     "realTimeFactor": 4.89,
-    "toolVersion": "0.2.0"
+    "toolVersion": "0.2.1"
   },
   "speakers": [
     { "id": "S0", "label": "Speaker 1", "totalSpeakingSeconds": 91.2, "turnCount": 4 },
