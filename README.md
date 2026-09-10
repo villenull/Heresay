@@ -69,7 +69,7 @@ Open Heresay from the Start Menu to choose a level. The setting applies to files
 
 > **SmartScreen:** the installer is unsigned, so Windows may warn you. Source review and the published checksum are the available mitigations. If you choose to continue, click **More info**, then **Run anyway**.
 
-If you installed a release before v0.2.2, uninstall it first, then install v0.2.2. Your recordings and transcript PDFs are not removed.
+If you installed a release before v0.2.2, uninstall it first, then install the current release. Your recordings and transcript PDFs are not removed.
 
 ## What the installer does
 

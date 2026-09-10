@@ -55,7 +55,7 @@ param(
     [string] $SourceRoot,
     [string] $ManifestPath,
     [string] $DownloadCache,
-    [string] $Version = '0.2.2',
+    [string] $Version = '0.2.3',
     # 7, not 2. A clean install now peaks near 5.9 GB because the DEFAULT speech model is
     # quantised locally from 1.55 GiB of f16 weights that are deleted afterwards - see
     # section 3b. 2 GB was already marginal before that; it would now let an install start

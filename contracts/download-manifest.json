@@ -90,7 +90,7 @@
       "purpose": "Probes media metadata (ffprobe) and decodes any container to 16 kHz mono PCM WAV (ffmpeg). Decode only - no encoders are used.",
       "required": true,
       "sourceRepo": "https://github.com/BtbN/FFmpeg-Builds",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-26-13-06/ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0.zip",
+      "url": "https://github.com/villenull/Heresay/releases/download/v0.2.3/ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0.zip",
       "filename": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0.zip",
       "sizeBytes": 147007899,
       "sha256": "f6bde4ee16e87a7aba228af9142645f429220f2d311128d7b827443ba21377c9",
@@ -98,7 +98,7 @@
       "license": "LGPL-3.0-or-later",
       "licenseUrl": "https://www.ffmpeg.org/legal.html",
       "licenseVerifiedFrom": "LICENSE.txt bundled in the archive is LGPL v3; ffmpeg -version shows no --enable-gpl and no --enable-nonfree, and --enable-version3 is present.",
-      "licenseNote": "LGPL variant chosen deliberately over the GPLv3 gyan.dev and BtbN GPL builds. Heresay only decodes audio, so the GPL-only encoders (x264/x265) are not needed. Verified that aac, mp3, opus, flac, wmav2, alac and ac3 all decode, from mp4/m4a/mov/mkv/ogg/flac/asf/wav containers. BtbN build scripts are MIT; the ffmpeg binaries they produce are LGPLv3 here.",
+      "licenseNote": "Unmodified mirror of the SHA256-pinned BtbN archive in the Heresay v0.2.3 release, because upstream auto-build releases rotate and cannot serve as durable installer dependencies. LGPL variant chosen deliberately over the GPLv3 gyan.dev and BtbN GPL builds. Heresay only decodes audio, so the GPL-only encoders (x264/x265) are not needed. Verified that aac, mp3, opus, flac, wmav2, alac and ac3 all decode, from mp4/m4a/mov/mkv/ogg/flac/asf/wav containers. BtbN build scripts are MIT; the ffmpeg binaries they produce are LGPLv3 here.",
       "extract": [
         {
           "from": "ffmpeg-n9.0.1-8-g16dfae5c88-win64-lgpl-9.0/bin/ffmpeg.exe",

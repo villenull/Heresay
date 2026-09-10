@@ -72,6 +72,12 @@ foreach ($component in $components) {
     Test-Condition ([string]$component.sha256 -match '^[0-9a-f]{64}$') "$($component.name) has an invalid SHA256"
     Test-Condition ([uri]::IsWellFormedUriString([string]$component.url, [System.UriKind]::Absolute)) "$($component.name) has an invalid URL"
 }
+$ffmpeg = @($components | Where-Object { $_.name -eq 'ffmpeg' })
+Test-Condition ($ffmpeg.Count -eq 1) 'download manifest must contain exactly one ffmpeg component'
+if ($ffmpeg.Count -eq 1) {
+    $expectedFfmpegUrl = "https://github.com/villenull/Heresay/releases/download/v$configVersion/$($ffmpeg[0].filename)"
+    Test-Condition ($ffmpeg[0].url -eq $expectedFfmpegUrl) "ffmpeg must use the durable release asset URL '$expectedFfmpegUrl'"
+}
 
 . (Join-Path $repoRoot 'installer\Install-Common.ps1')
 $normalised = @(Resolve-HeresayDownloadManifest -Path $manifestPath)
